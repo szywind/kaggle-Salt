@@ -4,6 +4,8 @@ class MODEL(Enum):
     TIRAMISUNET = 1
     REFINED_UNET = 2
     PSPNET2 = 3
+    RESNET101 = 4
+
 
 INPUT_PATH = '../input/'
 OUTPUT_PATH = '../output/test-result/'
@@ -37,14 +39,19 @@ TEST_DATASET = "testSet.txt"
 # MODEL_TYPE = MODEL.UNET
 
 # ##----------------- tiramisuNet --------------
-USE_REFINE_NET = False
-MODEL_DIR = "koutou_tf_180123"
-MODEL_TYPE = MODEL.TIRAMISUNET
+# USE_REFINE_NET = False
+# MODEL_DIR = "koutou_tf_180123"
+# MODEL_TYPE = MODEL.TIRAMISUNET
 
 ## ----------------- refinenet -----------------
 # USE_REFINE_NET = True
 # MODEL_DIR = "koutou_tf_180211"
 # MODEL_TYPE = MODEL.REFINED_UNET
+
+## ----------------- resnet -----------------
+USE_REFINE_NET = False
+MODEL_DIR = "koutou_tf_180211"
+MODEL_TYPE = MODEL.RESNET101
 
 ## ---------- Configure train + test or test only ------------------
 IS_TRAIN = True

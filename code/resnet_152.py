@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from keras.optimizers import SGD, RMSprop, RMSpropAccum
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D, Flatten, Activation, Dropout, GlobalAveragePooling2D, UpSampling2D, Conv2DTranspose, LeakyReLU
+from keras.optimizers import SGD, RMSpropAccum
+from keras.layers import Input, Dense, Conv2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D, Flatten, Activation, Dropout, Conv2DTranspose, LeakyReLU
 from keras.layers.merge import add, concatenate, average
 from keras.layers.normalization import BatchNormalization
 from keras.models import Model
 from keras import backend as K
 
 from custom_layers.scale_layer import Scale
-# from loss import focal_loss
 from constants import *
 
 import sys
@@ -92,16 +91,16 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, trainable, stri
     x = Activation('relu', name='res' + str(stage) + block + '_relu', trainable=trainable)(x)
     return x
 
-def resnet101_model(img_rows, img_cols, color_type=1, trainable=True):
+def resnet152_model(img_rows, img_cols, color_type=1, num_classes=None, trainable=True):
     """
-    Resnet 101 Model for Keras
+    Resnet 152 Model for Keras
 
     Model Schema and layer naming follow that of the original Caffe implementation
     https://github.com/KaimingHe/deep-residual-networks
 
     ImageNet Pretrained Weights
-    Theano: https://drive.google.com/file/d/0Byy2AcGyEVxfdUV1MHJhelpnSG8/view?usp=sharing
-    TensorFlow: https://drive.google.com/file/d/0Byy2AcGyEVxfTmRRVmpGWDczaXM/view?usp=sharing
+    Theano: https://drive.google.com/file/d/0Byy2AcGyEVxfZHhUT3lWVWxRN28/view?usp=sharing
+    TensorFlow: https://drive.google.com/file/d/0Byy2AcGyEVxfeXExMzNNOHpEODg/view?usp=sharing
 
     Parameters:
       img_rows, img_cols - resolution of inputs
@@ -127,7 +126,7 @@ def resnet101_model(img_rows, img_cols, color_type=1, trainable=True):
 
     layer1 = x
 
-    x = MaxPooling2D((2, 2), strides=(2, 2), name='pool1', trainable=trainable)(x)
+    x = MaxPooling2D((3, 3), strides=(2, 2), name='pool1', trainable=trainable)(x)
 
     x = conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1), trainable=trainable)
     x = identity_block(x, 3, [64, 64, 256], stage=2, block='b', trainable=trainable)
@@ -135,47 +134,47 @@ def resnet101_model(img_rows, img_cols, color_type=1, trainable=True):
 
     layer2 = x
     x = conv_block(x, 3, [128, 128, 512], stage=3, block='a', trainable=trainable)
-    for i in range(1,3):
+    for i in range(1,8):
       x = identity_block(x, 3, [128, 128, 512], stage=3, block='b'+str(i), trainable=trainable)
 
     layer3 = x
     x = conv_block(x, 3, [256, 256, 1024], stage=4, block='a', trainable=trainable)
-    for i in range(1,23):
-      # if i == 22:
-      #   x = identity_block(x, 3, [256, 256, 1024], stage=4, block='b' + str(i), trainable=True)
-      # else:
-        x = identity_block(x, 3, [256, 256, 1024], stage=4, block='b'+str(i), trainable=trainable)
+    for i in range(1,36):
+      x = identity_block(x, 3, [256, 256, 1024], stage=4, block='b'+str(i), trainable=trainable)
 
-    # layer4 = x
-    # x = conv_block(x, 3, [512, 512, 2048], stage=5, block='a', trainable=trainable)
-    # x = identity_block(x, 3, [512, 512, 2048], stage=5, block='b', trainable=trainable)
-    # x = identity_block(x, 3, [512, 512, 2048], stage=5, block='c', trainable=trainable)
+    layer4 = x
+    x = conv_block(x, 3, [512, 512, 2048], stage=5, block='a', trainable=trainable)
+    x = identity_block(x, 3, [512, 512, 2048], stage=5, block='b', trainable=trainable)
+    x = identity_block(x, 3, [512, 512, 2048], stage=5, block='c', trainable=trainable)
 
     # x_fc = AveragePooling2D((7, 7), name='avg_pool')(x)
     # x_fc = Flatten()(x_fc)
     # x_fc = Dense(1000, activation='softmax', name='fc1000')(x_fc)
 
     # model = Model(img_input, x_fc)
-
     model = Model(img_input, x)
+
 
     if K.image_dim_ordering() == 'th':
       # Use pre-trained weights for Theano backend
-      weights_path = '../imagenet_models/resnet101_weights_th.h5'
+      weights_path = '../imagenet_models/resnet152_weights_th.h5'
     else:
       # Use pre-trained weights for Tensorflow backend
-      weights_path = '../imagenet_models/resnet101_weights_tf.h5'
+      weights_path = '../imagenet_models/resnet152_weights_tf.h5'
 
     model.load_weights(weights_path, by_name=True)
 
-    return model, [layer1, layer2, layer3]
+    return model, [layer1, layer2, layer3, layer4]
+
 
 
 def upsample(in_layer, down, nchan):
-    up = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(in_layer)
-    up = Conv2DTranspose(nchan, (3, 3), strides=(2, 2), padding="same")(up)
+    # up = ZeroPadding2D((1, 1))(in_layer)
+    # up = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(in_layer)
+    up = Conv2DTranspose(nchan, (3, 3), strides=(2, 2), padding='same')(in_layer)
     down = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(down)
     # up = UpSampling2D((2, 2))(up)
+
     up = concatenate([down, up], axis=3)
     # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
     # up = BatchNormalization()(up)
@@ -188,8 +187,8 @@ def upsample(in_layer, down, nchan):
     up = Activation('relu')(up)
     return up
 
-def unet_resnet101(img_rows, img_cols, color_type, num_classes=1):
-    encode_model, layers = resnet101_model(img_rows, img_cols, color_type)
+def unet_resnet152(img_rows, img_cols, color_type, num_classes=1):
+    encode_model, layers = resnet152_model(img_rows, img_cols, color_type)
 
     input = encode_model.input
     # layer1 = encode_model.get_layer('conv1_relu')
@@ -197,9 +196,10 @@ def unet_resnet101(img_rows, img_cols, color_type, num_classes=1):
     # layer3 = encode_model.get_layer('res3b2_relu')
     # layer4 = encode_model.get_layer('res4b22_relu')
 
-    layer1, layer2, layer3 = layers
+    layer1, layer2, layer3, layer4 = layers
 
     x = encode_model.output
+    x = upsample(x, layer4, 1024 // 2)
     x = upsample(x, layer3, 512 // 2)
     x = upsample(x, layer2, 256 // 2)
     x = upsample(x, layer1, 64 // 2)

@@ -15,8 +15,22 @@ from keras.losses import binary_crossentropy
 from skimage.transform import resize
 from constants import *
 
+def random_crop(img, dstSize, center=False):
+    import random
+    srcH, srcW = img.shape[:2]
+    dstH, dstW = dstSize
+    if srcH <= dstH or srcW <= dstW:
+        return img
+    if center:
+        y0 = int((srcH - dstH) / 2)
+        x0 = int((srcW - dstW) / 2)
+    else:
+        y0 = random.randrange(0, srcH - dstH)
+        x0 = random.randrange(0, srcW - dstW)
+    return img[y0:y0+dstH, x0:x0+dstW]
+
 def randomRotationAndFlip(image, mask):
-    choice = np.random.randint(0, 6, 1)[0]
+    choice = np.random.randint(0, 8, 1)[0]
     mode = choice // 2
     image = imutils.rotate(image, mode * 90)
     mask = imutils.rotate(mask, mode * 90)

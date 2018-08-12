@@ -21,11 +21,11 @@ import glob
 import random
 from PIL import Image
 from sklearn.model_selection import train_test_split, StratifiedKFold, KFold
-import unet
-import pspnet
-import tiramisunet
+import unet, pspnet, tiramisunet, resnet_101, resnet_152
+K.set_image_dim_ordering('tf')
 
 np.set_printoptions(threshold='nan')
+
 
 class SaltSeg():
     def __init__(self, train = True, input_width=INPUT_WIDTH, input_height=INPUT_HEIGHT, batch_size=32, epochs=100, learn_rate=1e-2, nb_classes=2):
@@ -46,6 +46,10 @@ class SaltSeg():
 
         elif MODEL_TYPE == MODEL.PSPNET2:
             self.model = pspnet.pspnet2(input_shape=(self.input_height, self.input_width, 1))
+
+        elif MODEL_TYPE == MODEL.RESNET101:
+            # self.model = resnet_101.unet_resnet101(self.input_height, self.input_width, 3)
+            self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
 
         self.model.summary()
         if train:
@@ -115,7 +119,7 @@ class SaltSeg():
                     ids_train_batch = self.ids_train[start:end]
 
                     for img_name in ids_train_batch:
-                        img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png"))[..., 0]
+                        img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png")) #[..., 0]
                         img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         mask = cv2.imread(os.path.join(INPUT_PATH, "train", "masks", img_name + ".png"))[..., 0]
                         mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
@@ -161,7 +165,7 @@ class SaltSeg():
                     end = min(start + self.batch_size, nValid)
                     ids_valid_batch = self.ids_valid[start:end]
                     for img_name in ids_valid_batch:
-                        img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png"))[..., 0]
+                        img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png")) # [..., 0]
                         img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         mask = cv2.imread(os.path.join(INPUT_PATH, "train", "masks", img_name + ".png"))[..., 0]
                         mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
@@ -240,9 +244,9 @@ class SaltSeg():
         if not os.path.isfile(self.net_path) or not os.path.isfile(self.model_path):
             raise RuntimeError("No model found.")
 
-        json_file = open(self.net_path, 'r')
-        loaded_model_json = json_file.read()
-        self.model = model_from_json(loaded_model_json)
+        # json_file = open(self.net_path, 'r')
+        # loaded_model_json = json_file.read()
+        # self.model = model_from_json(loaded_model_json)
         self.model.load_weights(self.model_path)
 
         ## find best threshold
@@ -256,7 +260,7 @@ class SaltSeg():
                     end = min(start + self.batch_size, nValid)
                     ids_valid_batch = self.ids_valid[start:end]
                     for img_name in ids_valid_batch:
-                        img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png"))[..., 0]
+                        img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png")) # [..., 0]
                         img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         mask = cv2.imread(os.path.join(INPUT_PATH, "train", "masks", img_name + ".png"))[..., 0]
                         mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
@@ -323,7 +327,7 @@ class SaltSeg():
                         ids_test_batch = ids_test[start:end]
                         for img_name in ids_test_batch:
 
-                            img = cv2.imread(os.path.join(INPUT_PATH, "test", "images", img_name + ".png"))[..., 0]
+                            img = cv2.imread(os.path.join(INPUT_PATH, "test", "images", img_name + ".png")) # [..., 0]
                             img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
 
                             if img.ndim == 2:
@@ -351,7 +355,7 @@ class SaltSeg():
                 ids_test_batch = ids_test[start:end]
                 for img_name in ids_test_batch:
 
-                    img = cv2.imread(os.path.join(INPUT_PATH, "test", "images", img_name + ".png"))[..., 0]
+                    img = cv2.imread(os.path.join(INPUT_PATH, "test", "images", img_name + ".png")) # [..., 0]
                     img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
 
                     if img.ndim == 2:
