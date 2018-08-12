@@ -126,7 +126,8 @@ def resnet152_model(img_rows, img_cols, color_type=1, num_classes=None, trainabl
 
     layer1 = x
 
-    x = MaxPooling2D((3, 3), strides=(2, 2), name='pool1', trainable=trainable)(x)
+    # x = MaxPooling2D((3, 3), strides=(2, 2), name='pool1', trainable=trainable)(x) # input 64 x 64 -> output 31 x 31, which is wrong
+    x = MaxPooling2D((3, 3), strides=(2, 2), name='pool1', padding='same', trainable=trainable)(x)
 
     x = conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1), trainable=trainable)
     x = identity_block(x, 3, [64, 64, 256], stage=2, block='b', trainable=trainable)
@@ -169,9 +170,8 @@ def resnet152_model(img_rows, img_cols, color_type=1, num_classes=None, trainabl
 
 
 def upsample(in_layer, down, nchan):
-    # up = ZeroPadding2D((1, 1))(in_layer)
-    # up = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(in_layer)
-    up = Conv2DTranspose(nchan, (3, 3), strides=(2, 2), padding='same')(in_layer)
+    up = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(in_layer)
+    up = Conv2DTranspose(nchan, (3, 3), strides=(2, 2), padding='same', kernel_initializer='he_uniform')(up)
     down = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(down)
     # up = UpSampling2D((2, 2))(up)
 

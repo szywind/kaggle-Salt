@@ -206,7 +206,7 @@ class SaltSeg():
 
         # Set Training Options
         # opt = optimizers.RMSprop(lr=0.0001)
-        opt = optimizers.Adam()
+        opt = optimizers.Adam(lr=1e-4)
 
         if USE_REFINE_NET:
             self.model.compile(optimizer=opt,
