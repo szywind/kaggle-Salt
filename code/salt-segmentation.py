@@ -123,14 +123,14 @@ class SaltSeg():
                         img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         mask = cv2.imread(os.path.join(INPUT_PATH, "train", "masks", img_name + ".png"))[..., 0]
                         mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
-                        # img, mask = randomShiftScaleRotate(img, mask,
-                        #                                    shift_limit=(-0.0625, 0.0625),
-                        #                                    scale_limit=(-0.125, 0.125),
-                        #                                    rotate_limit=(-0, 0))
-                        # img, mask = randomHorizontalFlip(img, mask)
+                        img, mask = randomShiftScaleRotate(img, mask,
+                                                           shift_limit=(-0.08, 0.08),
+                                                           scale_limit=(0, 0.125),
+                                                           rotate_limit=(-0, 0))
+                        img, mask = randomHorizontalFlip(img, mask)
                         # img = randomGammaCorrection(img)
 
-                        img, mask = randomRotationAndFlip(img, mask)
+                        # img, mask = randomRotationAndFlip(img, mask)
                         # draw(img, mask)
 
                         if img.ndim == 2:
@@ -196,7 +196,7 @@ class SaltSeg():
                                        min_delta=1e-4),
                     ReduceLROnPlateau(monitor='val_loss',
                                            factor=0.1,
-                                           patience=3,
+                                           patience=6,
                                            cooldown=2,
                                            verbose=1),
                     ModelCheckpoint(filepath=self.model_path,

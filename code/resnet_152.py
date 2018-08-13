@@ -171,6 +171,8 @@ def resnet152_model(img_rows, img_cols, color_type=1, num_classes=None, trainabl
 
 def upsample(in_layer, down, nchan):
     up = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(in_layer)
+    up = BatchNormalization()(up)
+    up = Activation('relu')(up)
     up = Conv2DTranspose(nchan, (3, 3), strides=(2, 2), padding='same', kernel_initializer='he_uniform')(up)
     down = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(down)
     # up = UpSampling2D((2, 2))(up)

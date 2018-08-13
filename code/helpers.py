@@ -32,8 +32,8 @@ def random_crop(img, dstSize, center=False):
 def randomRotationAndFlip(image, mask):
     choice = np.random.randint(0, 8, 1)[0]
     mode = choice // 2
-    image = imutils.rotate(image, mode * 90)
-    mask = imutils.rotate(mask, mode * 90)
+    # image = imutils.rotate(image, mode * 90)
+    # mask = imutils.rotate(mask, mode * 90)
 
     if choice % 2 == 1:
         image = cv2.flip(image, flipCode=1)
@@ -172,10 +172,10 @@ def randomHorizontalFlip(image, mask, u=0.5):
 
 
 def randomGammaCorrection(image):
-    lower = 0.5
-    upper = 1.5
+    lower = 0.75
+    upper = 1.25
     mu = 1
-    sigma = 0.5
+    sigma = 0.25
     alpha = stats.truncnorm((lower-mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
     image = (pow(image/255.0, alpha.rvs(1)[0]) * 255).astype(np.uint8)
     return image
