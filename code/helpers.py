@@ -14,6 +14,32 @@ from pydensecrf.utils import compute_unary, create_pairwise_bilateral, \
 from keras.losses import binary_crossentropy
 from skimage.transform import resize
 from constants import *
+from imgaug import augmenters as iaa
+
+
+
+def randomIntensityAugmentation(image):
+    intensity_seq = iaa.Sequential([
+        # iaa.Invert(0.3),
+        iaa.Sometimes(0.3, iaa.ContrastNormalization((0.5, 1.5))),
+        iaa.OneOf([
+            iaa.Noop(),
+            iaa.Sequential([
+                iaa.OneOf([
+                    iaa.Add((-10, 10)),
+                    iaa.AddElementwise((-10, 10)),
+                    iaa.Multiply((0.95, 1.05)),
+                    iaa.MultiplyElementwise((0.95, 1.05)),
+                ]),
+            ]),
+            iaa.OneOf([
+                iaa.GaussianBlur(sigma=(0.0, 1.0)),
+                iaa.AverageBlur(k=(2, 5)),
+                iaa.MedianBlur(k=(3, 5))
+            ])
+        ])
+    ], random_order=False)
+    return intensity_seq.augment_images(image)
 
 def random_crop(img, dstSize, center=False):
     import random

@@ -21,7 +21,7 @@ import glob
 import random
 from PIL import Image
 from sklearn.model_selection import train_test_split, StratifiedKFold, KFold
-import unet, pspnet, tiramisunet, resnet_101, resnet_152
+import unet, pspnet, tiramisunet, resnet_101, resnet_152, densenet169
 K.set_image_dim_ordering('tf')
 
 np.set_printoptions(threshold='nan')
@@ -36,7 +36,6 @@ class SaltSeg():
         self.epochs = epochs
         self.learn_rate = learn_rate
         self.nb_classes = nb_classes
-        self.threshold = 0.5
 
         if MODEL_TYPE == MODEL.UNET or MODEL_TYPE == MODEL.REFINED_UNET:
             self.model = unet.get_unet_128(input_shape=(self.input_height, self.input_width, 1))
@@ -47,9 +46,12 @@ class SaltSeg():
         elif MODEL_TYPE == MODEL.PSPNET2:
             self.model = pspnet.pspnet2(input_shape=(self.input_height, self.input_width, 1))
 
-        elif MODEL_TYPE == MODEL.RESNET101:
+        elif MODEL_TYPE == MODEL.RESNET:
             # self.model = resnet_101.unet_resnet101(self.input_height, self.input_width, 3)
             self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
+
+        elif MODEL_TYPE == MODEL.DENSENET:
+            self.model = densenet169.unet_densenet169(self.input_height, self.input_width, 3)
 
         self.model.summary()
         if train:
@@ -128,7 +130,8 @@ class SaltSeg():
                                                            scale_limit=(0, 0.125),
                                                            rotate_limit=(-0, 0))
                         img, mask = randomHorizontalFlip(img, mask)
-                        # img = randomGammaCorrection(img)
+                        img = randomGammaCorrection(img)
+                        # img = randomIntensityAugmentation(img)
 
                         # img, mask = randomRotationAndFlip(img, mask)
                         # draw(img, mask)
