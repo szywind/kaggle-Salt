@@ -428,17 +428,18 @@ def iou_metric_batch(y_true_in, y_pred_in):
     return np.mean(metric)
 
 
-def find_best_threshold(y_valid, pred_valid):
-    thresholds = np.linspace(0, 1, 50)
-    ious = np.array(
-        [iou_metric_batch(y_valid, np.int32(pred_valid > threshold)) for threshold in thresholds])
-
+def find_best_threshold(ious, thresholds = np.linspace(0, 1, 50)):
     threshold_best_index = np.argmax(ious[9:-10]) + 9
     iou_best = ious[threshold_best_index]
     threshold_best = thresholds[threshold_best_index]
 
     return iou_best, threshold_best
 
+def evaluate_ious(y_valid, pred_valid):
+    thresholds = np.linspace(0, 1, 50)
+    ious = np.array(
+        [iou_metric_batch(y_valid, np.int32(pred_valid > threshold)) for threshold in thresholds])
+    return ious
 
 
 # Source https://www.kaggle.com/bguberfain/unet-with-depth

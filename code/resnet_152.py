@@ -6,6 +6,7 @@ from keras.layers.merge import add, concatenate, average
 from keras.layers.normalization import BatchNormalization
 from keras.models import Model
 from keras import backend as K
+from keras import regularizers
 
 from custom_layers.scale_layer import Scale
 from constants import *
@@ -46,6 +47,8 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, trainable):
 
     x = add([x, input_tensor], name='res' + str(stage) + block, trainable=trainable)
     x = Activation('relu', name='res' + str(stage) + block + '_relu', trainable=trainable)(x)
+
+    # x = Dropout(0.2)(x)
     return x
 
 def conv_block(input_tensor, kernel_size, filters, stage, block, trainable, strides=(2, 2)):
@@ -89,6 +92,8 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, trainable, stri
 
     x = add([x, shortcut], name='res' + str(stage) + block, trainable=trainable)
     x = Activation('relu', name='res' + str(stage) + block + '_relu', trainable=trainable)(x)
+
+    # x = Dropout(0.2)(x)
     return x
 
 def resnet152_model(img_rows, img_cols, color_type=1, num_classes=None, trainable=True):
@@ -168,25 +173,28 @@ def resnet152_model(img_rows, img_cols, color_type=1, num_classes=None, trainabl
     return model, [layer1, layer2, layer3, layer4]
 
 
-
-def upsample(in_layer, down, nchan):
+def upsample(in_layer, down, nchan, kernel_regularizer=regularizers.l2(0.00001)):
     up = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(in_layer)
     up = BatchNormalization()(up)
     up = Activation('relu')(up)
     up = Conv2DTranspose(nchan, (3, 3), strides=(2, 2), padding='same', kernel_initializer='he_uniform')(up)
-    down = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(down)
+    down = Conv2D(nchan, (1, 1), strides=(1, 1), padding='same', kernel_initializer='he_uniform')(down)
     # up = UpSampling2D((2, 2))(up)
 
     up = concatenate([down, up], axis=3)
-    # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
-    # up = BatchNormalization()(up)
-    # up = Activation('relu')(up)
-    # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
-    # up = BatchNormalization()(up)
-    # up = Activation('relu')(up)
-    # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
-    # up = BatchNormalization()(up)
     up = Activation('relu')(up)
+    # up = Dropout(0.2)(up)
+    up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
+    up = BatchNormalization()(up)
+    up = Activation('relu')(up)
+    # up = Dropout(0.2)(up)
+    up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
+    up = BatchNormalization()(up)
+    up = Activation('relu')(up)
+    # up = Dropout(0.2)(up)
+    # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
+    # up = BatchNormalization()(up)
+    # up = Activation('relu')(up)
     return up
 
 def unet_resnet152(img_rows, img_cols, color_type, num_classes=1):

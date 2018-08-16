@@ -61,3 +61,4 @@ MODEL_TYPE = MODEL.RESNET
 
 ## ---------- Configure train + test or test only ------------------
 IS_TRAIN = True
+DEBUG = False
