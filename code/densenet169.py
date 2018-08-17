@@ -50,10 +50,10 @@ def densenet169_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth
     global concat_axis
     if K.image_dim_ordering() == 'tf':
       concat_axis = 3
-      img_input = Input(shape=(224, 224, 3), name='data')
+      img_input = Input(shape=(img_rows, img_cols, 3), name='data')
     else:
       concat_axis = 1
-      img_input = Input(shape=(3, 224, 224), name='data')
+      img_input = Input(shape=(3, img_rows, img_cols), name='data')
 
     # From architecture for ImageNet (Table 1 in the paper)
     nb_filter = 64
@@ -68,21 +68,20 @@ def densenet169_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth
 
     layers.append(x)
 
-    x = ZeroPadding2D((1, 1), name='pool1_zeropadding')(x)
+    # x = ZeroPadding2D((1, 1), name='pool1_zeropadding')(x)
     x = MaxPooling2D((3, 3), strides=(2, 2), padding = 'same', name='pool1')(x)
-
-    layers.append(x)
 
     # Add dense blocks
     for block_idx in range(nb_dense_block - 1):
         stage = block_idx+2
         x, nb_filter = dense_block(x, stage, nb_layers[block_idx], nb_filter, growth_rate, dropout_rate=dropout_rate, weight_decay=weight_decay)
 
+        layers.append(x)
+
         # Add transition_block
         x = transition_block(x, stage, nb_filter, compression=compression, dropout_rate=dropout_rate, weight_decay=weight_decay)
         nb_filter = int(nb_filter * compression)
 
-        layers.append(x)
 
     final_stage = stage + 1
     x, nb_filter = dense_block(x, final_stage, nb_layers[-1], nb_filter, growth_rate, dropout_rate=dropout_rate, weight_decay=weight_decay)
@@ -214,15 +213,18 @@ def upsample(in_layer, down, nchan):
     # up = UpSampling2D((2, 2))(up)
 
     up = concatenate([down, up], axis=3)
-    # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
-    # up = BatchNormalization()(up)
-    # up = Activation('relu')(up)
-    # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
-    # up = BatchNormalization()(up)
-    # up = Activation('relu')(up)
-    # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
-    # up = BatchNormalization()(up)
     up = Activation('relu')(up)
+
+    up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
+    up = BatchNormalization()(up)
+    up = Activation('relu')(up)
+
+    up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
+    up = BatchNormalization()(up)
+    up = Activation('relu')(up)
+    # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
+    # up = BatchNormalization()(up)
+    # up = Activation('relu')(up)
     return up
 
 def unet_densenet169(img_rows, img_cols, color_type, num_classes=1):
@@ -237,7 +239,7 @@ def unet_densenet169(img_rows, img_cols, color_type, num_classes=1):
 
     x = encode_model.output
     nchan = 512
-    for layer in layers:
+    for layer in reversed(layers):
         x = upsample(x, layer, nchan)
         nchan  = nchan // 2
     x = upsample(x, input, nchan)
