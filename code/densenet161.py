@@ -1,31 +1,27 @@
 # -*- coding: utf-8 -*-
 
-from keras.optimizers import SGD
+from keras.models import Model
 from keras.layers import Input, merge, ZeroPadding2D, Dropout, Conv2D, Conv2DTranspose, LeakyReLU
 from keras.layers.core import Dense, Dropout, Activation
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import AveragePooling2D, GlobalAveragePooling2D, MaxPooling2D
 from keras.layers.normalization import BatchNormalization
-from keras.models import Model
 import keras.backend as K
-
-from sklearn.metrics import log_loss
 
 from custom_layers.scale_layer import Scale
 from constants import *
 from keras.layers.merge import concatenate, average
 
-
-def densenet169_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth_rate=32, nb_filter=64, reduction=0.5, dropout_rate=0.0, weight_decay=1e-4, num_classes=None):
+def densenet161_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth_rate=48, nb_filter=96, reduction=0.5, dropout_rate=0.0, weight_decay=1e-4, num_classes=None):
     '''
-    DenseNet 169 Model for Keras
+    DenseNet 161 Model for Keras
 
     Model Schema is based on
     https://github.com/flyyufelix/DenseNet-Keras
 
     ImageNet Pretrained Weights
-    Theano: https://drive.google.com/open?id=0Byy2AcGyEVxfN0d3T1F1MXg0NlU
-    TensorFlow: https://drive.google.com/open?id=0Byy2AcGyEVxfSEc5UC1ROUFJdmM
+    Theano: https://drive.google.com/open?id=0Byy2AcGyEVxfVnlCMlBGTDR3RGs
+    TensorFlow: https://drive.google.com/open?id=0Byy2AcGyEVxfUDZwVjU2cFNidTA
 
     # Arguments
         nb_dense_block: number of dense blocks to add to end
@@ -56,12 +52,12 @@ def densenet169_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth
       img_input = Input(shape=(3, img_rows, img_cols), name='data')
 
     # From architecture for ImageNet (Table 1 in the paper)
-    nb_filter = 64
-    nb_layers = [6,12,32,32] # For DenseNet-169
+    nb_filter = 96
+    nb_layers = [6,12,36,24] # For DenseNet-161
 
     # Initial convolution
     x = ZeroPadding2D((3, 3), name='conv1_zeropadding')(img_input)
-    x = Convolution2D(nb_filter, 7, 7, subsample=(2, 2), name='conv1', bias=False)(x)
+    x = Conv2D(nb_filter, (7, 7), strides=(2, 2), name='conv1', use_bias=False)(x)
     x = BatchNormalization(epsilon=eps, axis=concat_axis, name='conv1_bn')(x)
     x = Scale(axis=concat_axis, name='conv1_scale')(x)
     x = Activation('relu', name='relu1')(x)
@@ -82,7 +78,6 @@ def densenet169_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth
         x = transition_block(x, stage, nb_filter, compression=compression, dropout_rate=dropout_rate, weight_decay=weight_decay)
         nb_filter = int(nb_filter * compression)
 
-
     final_stage = stage + 1
     x, nb_filter = dense_block(x, final_stage, nb_layers[-1], nb_filter, growth_rate, dropout_rate=dropout_rate, weight_decay=weight_decay)
 
@@ -100,10 +95,10 @@ def densenet169_model(img_rows, img_cols, color_type=1, nb_dense_block=4, growth
 
     if K.image_dim_ordering() == 'th':
       # Use pre-trained weights for Theano backend
-      weights_path = '../imagenet_models/densenet169_weights_th.h5'
+      weights_path = '../imagenet_models/densenet161_weights_th.h5'
     else:
       # Use pre-trained weights for Tensorflow backend
-      weights_path = '../imagenet_models/densenet169_weights_tf.h5'
+      weights_path = '../imagenet_models/densenet161_weights_tf.h5'
 
     model.load_weights(weights_path, by_name=True)
 
@@ -129,7 +124,7 @@ def conv_block(x, stage, branch, nb_filter, dropout_rate=None, weight_decay=1e-4
     x = BatchNormalization(epsilon=eps, axis=concat_axis, name=conv_name_base+'_x1_bn')(x)
     x = Scale(axis=concat_axis, name=conv_name_base+'_x1_scale')(x)
     x = Activation('relu', name=relu_name_base+'_x1')(x)
-    x = Convolution2D(inter_channel, 1, 1, name=conv_name_base+'_x1', bias=False)(x)
+    x = Conv2D(inter_channel, (1, 1), name=conv_name_base+'_x1', use_bias=False)(x)
 
     if dropout_rate:
         x = Dropout(dropout_rate)(x)
@@ -139,7 +134,7 @@ def conv_block(x, stage, branch, nb_filter, dropout_rate=None, weight_decay=1e-4
     x = Scale(axis=concat_axis, name=conv_name_base+'_x2_scale')(x)
     x = Activation('relu', name=relu_name_base+'_x2')(x)
     x = ZeroPadding2D((1, 1), name=conv_name_base+'_x2_zeropadding')(x)
-    x = Convolution2D(nb_filter, 3, 3, name=conv_name_base+'_x2', bias=False)(x)
+    x = Conv2D(nb_filter, (3, 3), name=conv_name_base+'_x2', use_bias=False)(x)
 
     if dropout_rate:
         x = Dropout(dropout_rate)(x)
@@ -166,7 +161,7 @@ def transition_block(x, stage, nb_filter, compression=1.0, dropout_rate=None, we
     x = BatchNormalization(epsilon=eps, axis=concat_axis, name=conv_name_base+'_bn')(x)
     x = Scale(axis=concat_axis, name=conv_name_base+'_scale')(x)
     x = Activation('relu', name=relu_name_base)(x)
-    x = Convolution2D(int(nb_filter * compression), 1, 1, name=conv_name_base, bias=False)(x)
+    x = Conv2D(int(nb_filter * compression), (1, 1), name=conv_name_base, use_bias=False)(x)
 
     if dropout_rate:
         x = Dropout(dropout_rate)(x)
@@ -195,14 +190,12 @@ def dense_block(x, stage, nb_layers, nb_filter, growth_rate, dropout_rate=None, 
     for i in range(nb_layers):
         branch = i+1
         x = conv_block(concat_feat, stage, branch, growth_rate, dropout_rate, weight_decay)
-        concat_feat = merge([concat_feat, x], mode='concat', concat_axis=concat_axis, name='concat_'+str(stage)+'_'+str(branch))
+        concat_feat = concatenate([concat_feat, x], axis=concat_axis, name='concat_'+str(stage)+'_'+str(branch))
 
         if grow_nb_filters:
             nb_filter += growth_rate
 
     return concat_feat, nb_filter
-
-
 
 def upsample(in_layer, down, nchan, dropout_rate = 0.15):
     up = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(in_layer)
@@ -222,19 +215,19 @@ def upsample(in_layer, down, nchan, dropout_rate = 0.15):
     # up = Dropout(dropout_rate)(up)
     up = Activation('relu')(up)
 
-    up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
-    up = BatchNormalization()(up)
-    # up = Dropout(dropout_rate)(up)
-    up = Activation('relu')(up)
+    # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
+    # up = BatchNormalization()(up)
+    # # up = Dropout(dropout_rate)(up)
+    # up = Activation('relu')(up)
 
     # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
     # up = BatchNormalization()(up)
     # up = Activation('relu')(up)
     return up
 
-def unet_densenet169(img_rows, img_cols, color_type, num_classes=1):
+def unet_densenet161(img_rows, img_cols, color_type, num_classes=1):
     # encode_model, layers = densenet169_model(img_rows, img_cols, color_type, dropout_rate=0.15)
-    encode_model, layers = densenet169_model(img_rows, img_cols, color_type)
+    encode_model, layers = densenet161_model(img_rows, img_cols, color_type)
 
     input = encode_model.input
     # layer1 = encode_model.get_layer('conv1_relu')
