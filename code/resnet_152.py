@@ -212,8 +212,8 @@ def unet_resnet152(img_rows, img_cols, color_type, num_classes=1):
     x = upsample(x, layer4, 1024 // 2)
     x = upsample(x, layer3, 512 // 2)
     x = upsample(x, layer2, 256 // 2)
-    x = upsample(x, layer1, 64 // 2)
-    x = upsample(x, input, 32 // 2)
+    x = upsample(x, layer1, 128 // 2)
+    x = upsample(x, input, 64 // 2)
 
     output1 = Conv2D(num_classes, (1, 1), activation='sigmoid')(x)
 
