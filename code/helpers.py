@@ -10,7 +10,7 @@ import pydensecrf.densecrf as dcrf
 
 from pydensecrf.utils import compute_unary, create_pairwise_bilateral, \
     create_pairwise_gaussian, softmax_to_unary, unary_from_softmax
-
+import tensorflow as tf
 from keras.losses import binary_crossentropy
 from skimage.transform import resize
 from constants import *
@@ -225,6 +225,7 @@ def dice_score(y_true, y_pred):
     y_pred_f = K.flatten(y_pred)
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
+    # return (intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) - intersection + smooth)
 
 def dice_loss(y_true, y_pred):
     return 1. - dice_score(y_true, y_pred)
@@ -261,6 +262,36 @@ def weightedLoss(y_true, y_pred):
     # w1 = weights.sum()
     weights = weights / w1 * w0
     return weightedBCELoss2d(y_true, y_pred, weights) + weightedSoftDiceLoss(y_true, y_pred, weights)
+
+def focal_loss_1(y_true, y_pred, gamma=2.):
+    # y_pred /= K.sum(y_pred, axis=-1, keepdims=True)
+
+    epsilon = K.epsilon()
+
+    y_pred = K.clip(y_pred, epsilon, 1.0 - epsilon)
+
+    loss = K.pow(1.0 - y_pred, gamma)
+
+    loss = - K.sum(loss * y_true * K.log(y_pred), axis=-1)
+    return loss
+
+## https://www.kaggle.com/c/carvana-image-masking-challenge/discussion/39951
+def focal_loss(gamma=2, alpha=0.5):
+    def focal_loss_fixed(y_true, y_pred):
+        epsilon = K.epsilon()
+
+        y_pred = K.clip(y_pred, epsilon, 1.0 - epsilon)  # improve the stability of the focal loss and see issues 1 for more information
+        # pt_1 = tf.where(tf.equal(y_true, 1), y_pred, tf.ones_like(y_pred))
+        # pt_0 = tf.where(tf.equal(y_true, 0), y_pred, tf.zeros_like(y_pred))
+        # return -K.sum(alpha * K.pow(1. - pt_1, gamma) * K.log(pt_1))-K.sum((1-alpha) * K.pow( pt_0, gamma) * K.log(1. - pt_0))
+        return -K.mean(
+            alpha * y_true * K.pow(1. - y_pred, gamma) * K.log(y_pred) +
+        (1-alpha) * (1 - y_true) * K.pow(y_pred, gamma) * K.log(1. - y_pred))
+
+    return focal_loss_fixed
+
+def focal_dice_loss(y_true, y_pred):
+    return focal_loss()(y_true, y_pred) + dice_loss(y_true, y_pred)
 
 def get_score(train_masks, avg_masks, thr):
     d = 0.0
@@ -493,3 +524,23 @@ def downsample(img):
         return img
     return resize(img, (ORIG_WIDTH, ORIG_HEIGHT), mode='constant', preserve_range=True)
     # return img[:img_size_ori, :img_size_ori]
+
+
+from keras.layers import ZeroPadding2D
+
+# Extending the ZeroPadding2D layer to do reflection padding instead.
+class ReflectionPadding2D(ZeroPadding2D):
+    def call(self, x, mask=None):
+        pattern = [[0, 0],
+                   [self.top_pad, self.bottom_pad],
+                   [self.left_pad, self.right_pad],
+                   [0, 0]]
+        return tf.pad(x, pattern, mode='REFLECT')
+
+class SymmetricPadding2D(ZeroPadding2D):
+    def call(self, x, mask=None):
+        pattern = [[0, 0],
+                   [self.top_pad, self.bottom_pad],
+                   [self.left_pad, self.right_pad],
+                   [0, 0]]
+        return tf.pad(x, pattern, mode='SYMMETRIC')

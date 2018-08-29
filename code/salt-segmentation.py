@@ -21,7 +21,8 @@ import glob
 import random
 from PIL import Image
 from sklearn.model_selection import train_test_split, StratifiedKFold, KFold
-import unet, pspnet, tiramisunet, resnet_101, resnet_152, densenet169
+import unet, pspnet, tiramisunet, resnet_50, resnet_101, resnet_152, densenet169, densenet161, densenet121
+
 K.set_image_dim_ordering('tf')
 
 np.set_printoptions(threshold='nan')
@@ -51,9 +52,13 @@ class SaltSeg():
         elif MODEL_TYPE == MODEL.RESNET:
             # self.model = resnet_101.unet_resnet101(self.input_height, self.input_width, 3)
             self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
+            # self.model = resnet_50.unet_resnet50(self.input_height, self.input_width, 3)
 
         elif MODEL_TYPE == MODEL.DENSENET:
-            self.model = densenet169.unet_densenet169(self.input_height, self.input_width, 3)
+            self.model = densenet161.unet_densenet161(self.input_height, self.input_width, 3)
+
+        # elif MODEL_TYPE == MODEL.INCEPTION:
+        #     self.model = inception_v4.unet_densenet169(self.input_height, self.input_width, 3)
 
         self.model.summary()
         self.model.save_weights('../weights/model.h5')
@@ -84,25 +89,36 @@ class SaltSeg():
         # train_images = [np.array(load_img("../input/train/images/{}.png".format(idx), grayscale=True)) / 255 for
         #                       idx in tqdm_notebook(df_train.index)]
 
-        df_train["masks"] = [np.array(load_img("../input/train/masks/{}.png".format(idx), grayscale=True)) / 255 for idx
-                             in tqdm_notebook(df_train.index)]
+
 
         def cov_to_class(val):
             for i in range(0, 11):
                 if val * 10 <= i:
                     return i
+        if STRATIFIED_BY_COVERAGE:
+            df_train["masks"] = [np.array(load_img("../input/train/masks/{}.png".format(idx), grayscale=True)) / 255 for idx
+                                 in tqdm_notebook(df_train.index)]
+            self.df_train["coverage"] = df_train.masks.map(np.sum) / float(self.input_width * self.input_height)
+            self.df_train["stratify_class"] = self.df_train.coverage.map(cov_to_class)
+        else:
+            max_depth = df_depths.max(0).values[-1]
+            min_depth = df_depths.min(0).values[-1]
+            depth_range = float(max_depth - min_depth)
+            print(depth_range)
 
-        self.df_train["coverage"] = df_train.masks.map(np.sum) / float(self.input_width * self.input_height)
-        self.df_train["coverage_class"] = self.df_train.coverage.map(cov_to_class)
+            self.df_train["depth"] = [(depth - min_depth + 1) / (depth_range + 1) for depth in self.df_train.z]
+            self.df_train["stratify_class"] = self.df_train.depth.map(cov_to_class)
+
+            # self.df_train["stratify_class"] = [cov_to_class((depth - min_depth + 1) / (depth_range + 1)) for depth in self.df_train.values]
 
         self.ids_test = self.df_test.index.values[:]
 
         # stratified train/validation split by salt coverage
-        self.ids_train, self.ids_valid, self.coverage_train, self.coverage_test, self.depth_train, self.depth_test = train_test_split(
+        self.ids_train, self.ids_valid, self.depth_train, self.depth_test = train_test_split(
             self.df_train.index.values,
-            self.df_train.coverage.values,
+            # self.df_train.coverage.values,
             self.df_train.z.values,
-            test_size=0.2, stratify=self.df_train.coverage_class, random_state=37)
+            test_size=0.2, stratify=self.df_train.stratify_class, random_state=37)
 
 
     def train_cv(self):
@@ -117,13 +133,13 @@ class SaltSeg():
         # for train_index, test_index in kf.split(self.train_imgs):
 
         skf = StratifiedKFold(n_splits=self.nfolds, random_state=37, shuffle=True)
-        for train_index, valid_index in skf.split(self.df_train.index.values, self.df_train.coverage_class.values):
+        for train_index, valid_index in skf.split(self.df_train.index.values, self.df_train.stratify_class.values):
             if DEBUG and fold_id > 0:
                 break;
             self.ids_train = self.df_train.index.values[train_index]
-            self.coverage_train = self.df_train.coverage_class.values[train_index]
+            # self.coverage_train = self.df_train.stratify_class.values[train_index]
             self.ids_valid = self.df_train.index.values[valid_index]
-            self.coverage_valid = self.df_train.coverage_class.values[valid_index]
+            # self.coverage_valid = self.df_train.stratify_class.values[valid_index]
 
             # print(len(self.ids_train))
             # for i in range(11):
@@ -190,6 +206,9 @@ class SaltSeg():
                         img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png")) #[..., 0]
                         img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         mask = cv2.imread(os.path.join(INPUT_PATH, "train", "masks", img_name + ".png"))[..., 0]
+                        if np.sum(mask < 128) < 25:
+                            continue
+
                         mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         img, mask = randomShiftScaleRotate(img, mask,
                                                            shift_limit=(-0.08, 0.08),
@@ -259,7 +278,7 @@ class SaltSeg():
                     else:
                         yield x_batch, y_batch
 
-        if fold_id >= 2:
+        if IS_TRAIN and fold_id >= 2:
 
             callbacks = [EarlyStopping(monitor='val_loss',
                                            patience=10,
@@ -279,7 +298,8 @@ class SaltSeg():
 
             # Set Training Options
             # opt = optimizers.RMSprop(lr=0.0001)
-            opt = optimizers.Adam(lr=1e-4)
+            # opt = optimizers.Adam(lr=1e-4)
+            opt = optimizers.SGD(lr=1e-3, momentum=0.9)
 
             if USE_REFINE_NET:
                 self.model.compile(optimizer=opt,
@@ -289,7 +309,7 @@ class SaltSeg():
                                    )
             else:
                 self.model.compile(optimizer=opt,
-                                   loss=bce_dice_loss,
+                                   loss=binary_crossentropy,
                                    metrics=[dice_score]
                                )
 
@@ -330,6 +350,12 @@ class SaltSeg():
         return y_valid, p_valid
 
     def test_cv(self):
+        def get_mask(pred):
+            mask = cv2.resize(pred, (ORIG_WIDTH, ORIG_HEIGHT), interpolation=cv2.INTER_LINEAR) > self.best_threshold
+            if np.sum(mask) < 5:
+                mask = np.zeros(mask.shape)
+            return mask
+
         if DEBUG:
             pred_test = self.test(0)
         else:
@@ -339,7 +365,7 @@ class SaltSeg():
                 pred_test += pred_test_i
             pred_test /= float(self.nfolds)
 
-        pred_dict = {idx: RLenc(np.round(cv2.resize(pred_test[i], (ORIG_WIDTH, ORIG_HEIGHT), interpolation=cv2.INTER_LINEAR) > self.best_threshold))
+        pred_dict = {idx: RLenc(np.round(get_mask(pred_test[i])))
                      for i, idx in enumerate(tqdm_notebook(self.ids_test))}
         sub = pd.DataFrame.from_dict(pred_dict, orient='index')
         sub.index.names = ['id']
@@ -456,6 +482,5 @@ class SaltSeg():
 
 if __name__ == "__main__":
     ccs = SaltSeg(input_width=INPUT_WIDTH, input_height=INPUT_HEIGHT, train=IS_TRAIN, nb_classes=NUM_CLASS)
-    if IS_TRAIN:
-        ccs.train_cv()
+    ccs.train_cv()
     ccs.test_cv()

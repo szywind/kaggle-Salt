@@ -6,6 +6,7 @@ class MODEL(Enum):
     PSPNET2 = 3
     RESNET = 4
     DENSENET = 5
+    INCEPTION = 6
 
 
 INPUT_PATH = '../input/'
@@ -17,8 +18,11 @@ ORIG_HEIGHT = 101
 INPUT_WIDTH = 128
 INPUT_HEIGHT = 128
 
-##-------------------- Configure #Classes ------------------------
+##-------------------- Configurations ------------------------
 NUM_CLASS = 2 # background / foreground till now
+EPOCHS = 50
+PRINT_FREQ = 2
+STRATIFIED_BY_COVERAGE = False
 
 ##------------------- Setup Dataset ------------------------------
 # train/test dataset for head segmentation
@@ -50,14 +54,19 @@ TEST_DATASET = "testSet.txt"
 # MODEL_TYPE = MODEL.REFINED_UNET
 
 ## ----------------- resnet -----------------
-USE_REFINE_NET = False
-MODEL_DIR = "koutou_tf_180211"
-MODEL_TYPE = MODEL.RESNET
-
-## ----------------- densenet -----------------
 # USE_REFINE_NET = False
 # MODEL_DIR = "koutou_tf_180211"
-# MODEL_TYPE = MODEL.DENSENET
+# MODEL_TYPE = MODEL.RESNET
+
+## ----------------- densenet -----------------
+USE_REFINE_NET = False
+MODEL_DIR = "koutou_tf_180211"
+MODEL_TYPE = MODEL.DENSENET
+
+## ----------------- inception -----------------
+# USE_REFINE_NET = False
+# MODEL_DIR = "koutou_tf_180211"
+# MODEL_TYPE = MODEL.INCEPTION
 
 ## ---------- Configure train + test or test only ------------------
 IS_TRAIN = True
