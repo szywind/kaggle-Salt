@@ -127,7 +127,7 @@ def resnet101_model(img_rows, img_cols, color_type=1, trainable=True):
 
     layer1 = x
 
-    x = MaxPooling2D((2, 2), strides=(2, 2), name='pool1', trainable=trainable)(x)
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='pool1', trainable=trainable)(x)
 
     x = conv_block(x, 3, [64, 64, 256], stage=2, block='a', strides=(1, 1), trainable=trainable)
     x = identity_block(x, 3, [64, 64, 256], stage=2, block='b', trainable=trainable)
@@ -146,10 +146,10 @@ def resnet101_model(img_rows, img_cols, color_type=1, trainable=True):
       # else:
         x = identity_block(x, 3, [256, 256, 1024], stage=4, block='b'+str(i), trainable=trainable)
 
-    # layer4 = x
-    # x = conv_block(x, 3, [512, 512, 2048], stage=5, block='a', trainable=trainable)
-    # x = identity_block(x, 3, [512, 512, 2048], stage=5, block='b', trainable=trainable)
-    # x = identity_block(x, 3, [512, 512, 2048], stage=5, block='c', trainable=trainable)
+    layer4 = x
+    x = conv_block(x, 3, [512, 512, 2048], stage=5, block='a', trainable=trainable)
+    x = identity_block(x, 3, [512, 512, 2048], stage=5, block='b', trainable=trainable)
+    x = identity_block(x, 3, [512, 512, 2048], stage=5, block='c', trainable=trainable)
 
     # x_fc = AveragePooling2D((7, 7), name='avg_pool')(x)
     # x_fc = Flatten()(x_fc)
@@ -168,7 +168,7 @@ def resnet101_model(img_rows, img_cols, color_type=1, trainable=True):
 
     model.load_weights(weights_path, by_name=True)
 
-    return model, [layer1, layer2, layer3]
+    return model, [layer1, layer2, layer3, layer4]
 
 
 def upsample(in_layer, down, nchan):
@@ -197,13 +197,14 @@ def unet_resnet101(img_rows, img_cols, color_type, num_classes=1):
     # layer3 = encode_model.get_layer('res3b2_relu')
     # layer4 = encode_model.get_layer('res4b22_relu')
 
-    layer1, layer2, layer3 = layers
+    layer1, layer2, layer3, layer4 = layers
 
     x = encode_model.output
+    x = upsample(x, layer4, 1024 // 2)
     x = upsample(x, layer3, 512 // 2)
     x = upsample(x, layer2, 256 // 2)
-    x = upsample(x, layer1, 64 // 2)
-    x = upsample(x, input, 32 // 2)
+    x = upsample(x, layer1, 128 // 2)
+    x = upsample(x, input, 64 // 2)
 
     output1 = Conv2D(num_classes, (1, 1), activation='sigmoid')(x)
 

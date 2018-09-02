@@ -204,30 +204,36 @@ def dense_block(x, stage, nb_layers, nb_filter, growth_rate, dropout_rate=None, 
 
 
 
-def upsample(in_layer, down, nchan):
+def upsample(in_layer, down, nchan, dropout_rate = 0.15):
     up = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(in_layer)
     up = BatchNormalization()(up)
+    # up = Dropout(dropout_rate)(up)
     up = Activation('relu')(up)
     up = Conv2DTranspose(nchan, (3, 3), strides=(2, 2), padding='same', kernel_initializer='he_uniform')(up)
     down = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(down)
     # up = UpSampling2D((2, 2))(up)
 
     up = concatenate([down, up], axis=3)
+    # up = Dropout(dropout_rate)(up)
     up = Activation('relu')(up)
 
     up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
     up = BatchNormalization()(up)
+    # up = Dropout(dropout_rate)(up)
     up = Activation('relu')(up)
 
     up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
     up = BatchNormalization()(up)
+    # up = Dropout(dropout_rate)(up)
     up = Activation('relu')(up)
+
     # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
     # up = BatchNormalization()(up)
     # up = Activation('relu')(up)
     return up
 
 def unet_densenet169(img_rows, img_cols, color_type, num_classes=1):
+    # encode_model, layers = densenet169_model(img_rows, img_cols, color_type, dropout_rate=0.15)
     encode_model, layers = densenet169_model(img_rows, img_cols, color_type)
 
     input = encode_model.input
