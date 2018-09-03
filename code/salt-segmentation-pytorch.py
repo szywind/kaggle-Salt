@@ -7,7 +7,7 @@ print(check_output(["ls", "../input"]).decode("utf8"))
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 import os, math, shutil, time
-from keras.preprocessing.image import load_img
+# from keras.preprocessing.image import load_img
 from tqdm import tqdm, tqdm_notebook
 
 # from constants import *
@@ -142,7 +142,7 @@ def mixed_dice_bce_loss(output, target, dice_weight=0.5, bce_weight=0.5,
 
 
 class SaltSeg():
-    def __init__(self, input_width=INPUT_WIDTH, input_height=INPUT_HEIGHT, batch_size=32, learn_rate=1e-4):
+    def __init__(self, input_width=INPUT_WIDTH, input_height=INPUT_HEIGHT, batch_size=1, learn_rate=1e-4):
         
         self.input_width = input_width
         self.input_height = input_height
@@ -186,8 +186,12 @@ class SaltSeg():
         self.df_train = df_train.join(df_depths)
         self.df_test = df_depths[~df_depths.index.isin(df_train.index)]
 
+        def load_mask(mask_path):
+            mask = cv2.imread(mask_path)[..., 0]
+            mask = np.array(mask, np.float32) / 255.0
+            return mask
 
-        df_train["masks"] = [np.array(load_img("../input/train/masks/{}.png".format(idx), grayscale=True)) / 255 for idx
+        df_train["masks"] = [load_mask("../input/train/masks/{}.png".format(idx)) for idx
                              in tqdm_notebook(df_train.index)]
 
         def cov_to_class(val):
@@ -232,37 +236,37 @@ class SaltSeg():
             # for i in range(11):
             #     print("i: ", sum(self.coverage_train == i))
 
-            print("Train {}-th fold".format(fold_id))
-            y_valid_i, p_valid_i = self.train(fold_id)
-            print("y_valid_i, p_valid_i:", y_valid_i.shape, p_valid_i.shape)
-
-            ious_i = evaluate_ious(y_valid_i, p_valid_i)
-            for iou in ious_i:
-                print(iou)
-
-            ious += ious_i
-
-            del y_valid_i
-            del p_valid_i
-
-            # if y_valid is None:
-            #     y_valid = y_valid_i
-            #     p_valid = p_valid_i
-            # else:
-            #     y_valid = np.vstack([y_valid, y_valid_i])
-            #     p_valid = np.vstack([p_valid, p_valid_i])
-
-            fold_id += 1
+            # print("Train {}-th fold".format(fold_id))
+            # y_valid_i, p_valid_i = self.train(fold_id)
+            # print("y_valid_i, p_valid_i:", y_valid_i.shape, p_valid_i.shape)
+            #
+            # ious_i = evaluate_ious(y_valid_i, p_valid_i)
+            # for iou in ious_i:
+            #     print(iou)
+            #
+            # ious += ious_i
+            #
+            # del y_valid_i
+            # del p_valid_i
+            #
+            # # if y_valid is None:
+            # #     y_valid = y_valid_i
+            # #     p_valid = p_valid_i
+            # # else:
+            # #     y_valid = np.vstack([y_valid, y_valid_i])
+            # #     p_valid = np.vstack([p_valid, p_valid_i])
+            #
+            # fold_id += 1
 
         ## find best threshold
         # best_score, best_threshold = find_best_seg_thr(y_valid, p_valid)
 
         # best_score, best_threshold = find_best_threshold(y_valid, p_valid)
 
-        best_score, best_threshold = find_best_threshold(ious)
-        print(best_score, best_threshold)
-
-        self.best_threshold = best_threshold
+        # best_score, best_threshold = find_best_threshold(ious)
+        # print(best_score, best_threshold)
+        #
+        # self.best_threshold = best_threshold
 
 
 
@@ -566,4 +570,4 @@ if __name__ == "__main__":
     ccs = SaltSeg(input_width=INPUT_WIDTH, input_height=INPUT_HEIGHT)
     if IS_TRAIN:
         ccs.train_cv()
-    ccs.test_cv()
+    # ccs.test_cv()

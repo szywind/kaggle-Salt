@@ -44,15 +44,15 @@ class SaltSeg():
             self.model = unet.get_unet_128(input_shape=(self.input_height, self.input_width, 1))
 
         elif MODEL_TYPE == MODEL.TIRAMISUNET:
-            self.model = tiramisunet.get_tiramisunet(input_shape=(self.input_height, self.input_width, 1))
+            self.model = tiramisunet.get_tiramisunet(input_shape=(self.input_height, self.input_width, 3))
 
         elif MODEL_TYPE == MODEL.PSPNET2:
             self.model = pspnet.pspnet2(input_shape=(self.input_height, self.input_width, 1))
 
         elif MODEL_TYPE == MODEL.RESNET:
             # self.model = resnet_101.unet_resnet101(self.input_height, self.input_width, 3)
-            self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
-            # self.model = resnet_50.unet_resnet50(self.input_height, self.input_width, 3)
+            # self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
+            self.model = resnet_50.unet_resnet50(self.input_height, self.input_width, 3)
 
         elif MODEL_TYPE == MODEL.DENSENET:
             self.model = densenet161.unet_densenet161(self.input_height, self.input_width, 3)
@@ -204,16 +204,20 @@ class SaltSeg():
 
                     for img_name in ids_train_batch:
                         img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png")) #[..., 0]
-                        img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         mask = cv2.imread(os.path.join(INPUT_PATH, "train", "masks", img_name + ".png"))[..., 0]
-                        if np.sum(mask < 128) < 25:
+                        if np.sum(mask < 128) < 10:
                             continue
 
-                        mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
-                        img, mask = randomShiftScaleRotate(img, mask,
-                                                           shift_limit=(-0.08, 0.08),
-                                                           scale_limit=(0, 0.125),
-                                                           rotate_limit=(-0, 0))
+                        if MODE == PADCROPTYPE.RESIZE or MODE == PADCROPTYPE.NONE:
+                            img, mask = transform(img, mask, padding=np.random.randint(0, 20))
+                        elif MODE == PADCROPTYPE.ZERO or MODE == PADCROPTYPE.RECEPTIVE:
+                            img, mask = transform(img, mask, padding=np.random.randint(14, 20), center=True)
+
+
+                        # img, mask = randomShiftScaleRotate(img, mask,
+                        #                                    shift_limit=(-0.08, 0.08),
+                        #                                    scale_limit=(0, 0.125),
+                        #                                    rotate_limit=(-0, 0))
                         img, mask = randomHorizontalFlip(img, mask)
                         img = randomGammaCorrection(img)
                         # img = randomIntensityAugmentation(img)
@@ -247,23 +251,36 @@ class SaltSeg():
 
         def valid_generator():
             while True:
-                for start in range(0, nValid, self.batch_size):
+                for start in range(0, nValid, self.batch_size // VALID_TTA):
                     x_batch = []
                     y_batch = []
-                    end = min(start + self.batch_size, nValid)
+                    end = min(start + self.batch_size // VALID_TTA, nValid)
                     ids_valid_batch = self.ids_valid[start:end]
                     for img_name in ids_valid_batch:
                         img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png")) # [..., 0]
-                        img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         mask = cv2.imread(os.path.join(INPUT_PATH, "train", "masks", img_name + ".png"))[..., 0]
-                        mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
+
+                        if MODE == PADCROPTYPE.RESIZE or MODE == PADCROPTYPE.NONE:
+                            img, mask = transform(img, mask, padding=0, center=True)
+                        elif MODE == PADCROPTYPE.ZERO or MODE == PADCROPTYPE.RECEPTIVE:
+                            img, mask = transform(img, mask, center=True)
+
+                        if VALID_TTA == 2:
+                            img2, mask2 = randomHorizontalFlip(img, mask, u=1.01)
 
                         if img.ndim == 2:
                             img = np.expand_dims(img, axis=-1) # equivalent to img[..., np.newaxis]
+                            if VALID_TTA == 2:
+                                img2 = np.expand_dims(img2, axis=-1)
                         if self.direct_result:
                             mask = np.expand_dims(mask, axis=2)
+                            if VALID_TTA == 2:
+                                mask2 = np.expand_dims(mask2, axis=2)
                             x_batch.append(img)
                             y_batch.append(mask)
+                            if VALID_TTA == 2:
+                                x_batch.append(img2)
+                                y_batch.append(mask2)
                         else:
                             target = np.zeros((mask.shape[0], mask.shape[1], self.nb_classes))
                             for k in range(self.nb_classes):
@@ -278,7 +295,7 @@ class SaltSeg():
                     else:
                         yield x_batch, y_batch
 
-        if IS_TRAIN and fold_id >= 2:
+        if IS_TRAIN and fold_id >= 0:
 
             callbacks = [EarlyStopping(monitor='val_loss',
                                            patience=10,
@@ -299,7 +316,12 @@ class SaltSeg():
             # Set Training Options
             # opt = optimizers.RMSprop(lr=0.0001)
             # opt = optimizers.Adam(lr=1e-4)
-            opt = optimizers.SGD(lr=1e-3, momentum=0.9)
+            opt = optimizers.SGD(lr=1e-2, momentum=0.9)
+
+            if MODE == PADCROPTYPE.RESIZE or MODE == PADCROPTYPE.NONE or MODE == PADCROPTYPE.ZERO:
+                loss = binary_crossentropy
+            elif MODE == PADCROPTYPE.RECEPTIVE:
+                loss = weightedBCE
 
             if USE_REFINE_NET:
                 self.model.compile(optimizer=opt,
@@ -309,18 +331,18 @@ class SaltSeg():
                                    )
             else:
                 self.model.compile(optimizer=opt,
-                                   loss=binary_crossentropy,
+                                   loss=loss,
                                    metrics=[dice_score]
                                )
 
-            self.model.fit_generator(
-                generator=train_generator(),
-                steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
-                epochs=1,
-                verbose=1,
-                callbacks=callbacks,
-                validation_data=valid_generator(),
-                validation_steps=math.ceil(nValid / float(self.batch_size)))
+            # self.model.fit_generator(
+            #     generator=train_generator(),
+            #     steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+            #     epochs=1,
+            #     verbose=1,
+            #     callbacks=callbacks,
+            #     validation_data=valid_generator(),
+            #     validation_steps=math.ceil(VALID_TTA * nValid / float(self.batch_size)))
 
             self.model.fit_generator(
                 generator=train_generator(),
@@ -329,29 +351,40 @@ class SaltSeg():
                 verbose=2,
                 callbacks=callbacks,
                 validation_data=valid_generator(),
-                validation_steps=math.ceil(nValid / float(self.batch_size)))
+                validation_steps=math.ceil(VALID_TTA * nValid / float(self.batch_size)))
 
         ## evaluate on validation set
         p_valid = self.model.predict_generator(generator=valid_generator(),
-                                               steps=math.ceil(nValid / float(self.batch_size)))
+                                               steps=math.ceil(VALID_TTA * nValid / float(self.batch_size)))
 
         if USE_REFINE_NET:
             p_valid = p_valid[-1]
+
+        if MODE == PADCROPTYPE.ZERO or MODE == PADCROPTYPE.RECEPTIVE:
+            p_valid= random_crop(p_valid, dstSize=(ORIG_HEIGHT, ORIG_WIDTH), center=True)
 
         y_valid = []
         for img_name in self.ids_valid:
             # j = np.random.randint(self.nAug)
             mask = cv2.imread(os.path.join(INPUT_PATH, "train", "masks", img_name + ".png"))[..., 0]
-            mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
-            # img = transformations2(img, j)
+            if MODE == PADCROPTYPE.RESIZE or MODE == PADCROPTYPE.NONE:
+                mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
             y_valid.append(mask)
+
+            if VALID_TTA == 2:
+                mask2 = cv2.flip(mask, 1)
+                y_valid.append(mask2)
 
         y_valid = np.array(y_valid, np.float32)
         return y_valid, p_valid
 
     def test_cv(self):
         def get_mask(pred):
-            mask = cv2.resize(pred, (ORIG_WIDTH, ORIG_HEIGHT), interpolation=cv2.INTER_LINEAR) > self.best_threshold
+            if MODE == PADCROPTYPE.RESIZE or MODE == PADCROPTYPE.NONE:
+                mask = cv2.resize(pred, (ORIG_WIDTH, ORIG_HEIGHT), interpolation=cv2.INTER_LINEAR) > self.best_threshold
+            elif MODE == PADCROPTYPE.ZERO or MODE == PADCROPTYPE.RECEPTIVE:
+                mask = random_crop(pred, dstSize=(ORIG_HEIGHT, ORIG_WIDTH), center=True) > self.best_threshold
+
             if np.sum(mask) < 5:
                 mask = np.zeros(mask.shape)
             return mask
@@ -425,7 +458,12 @@ class SaltSeg():
                 for img_name in ids_test_batch:
 
                     img = cv2.imread(os.path.join(INPUT_PATH, "test", "images", img_name + ".png")) # [..., 0]
-                    img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
+
+                    if MODE == PADCROPTYPE.RESIZE or MODE == PADCROPTYPE.NONE:
+                        img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
+                    elif MODE == PADCROPTYPE.ZERO or MODE == PADCROPTYPE.RECEPTIVE:
+                        img = transform(img, center=True)
+
 
                     if img.ndim == 2:
                         img = np.expand_dims(img, axis=-1)  # equivalent to img[..., np.newaxis]

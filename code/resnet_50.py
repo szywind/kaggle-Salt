@@ -369,11 +369,11 @@ def unet_resnet50(img_rows, img_cols, color_type, num_classes=1):
     layer1, layer2, layer3, layer4 = layers
 
     x = encode_model.output
-    x = upsample(x, layer4, 1024)
-    x = upsample(x, layer3, 512)
-    x = upsample(x, layer2, 256)
-    x = upsample(x, layer1, 128)
-    x = upsample(x, input, 64)
+    x = upsample(x, layer4, 1024 // 2)
+    x = upsample(x, layer3, 512 // 2)
+    x = upsample(x, layer2, 256 // 2)
+    x = upsample(x, layer1, 128 // 2)
+    x = upsample(x, input, 64 // 2)
 
     output1 = Conv2D(num_classes, (1, 1), activation='sigmoid')(x)
 

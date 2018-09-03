@@ -29,7 +29,7 @@ def transitionDown(t, nb_features):
     t = MaxPooling2D(pool_size=(2, 2), strides=2, padding='same')(t)
     return t
 
-def Tiramisu(layer_per_block, input_shape, num_classes, n_pool=6, growth_rate=8):
+def Tiramisu(layer_per_block, input_shape, num_classes, n_pool=5, growth_rate=8):
     input_layer = Input(shape=input_shape)
     t = Conv2D(16, kernel_size=(3, 3), strides=(1, 1), padding='same')(input_layer)
 
@@ -61,8 +61,9 @@ def Tiramisu(layer_per_block, input_shape, num_classes, n_pool=6, growth_rate=8)
     return Model(inputs=input_layer, outputs=output_layer)
 
 def get_tiramisunet(input_shape=(224, 224, 3), num_classes=1):
-    # layer_per_block = [4, 5, 7, 10, 12, 15, 12, 10, 7, 5, 4]
-    layer_per_block = [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+    # layer_per_block = [4, 5, 6, 8, 10, 12, 10, 8, 6, 5, 4]
+    layer_per_block = [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+
 
     tiramisu = Tiramisu(layer_per_block, input_shape=input_shape, num_classes=num_classes)
     #plot_model(tiramisu, to_file='model.pdf')

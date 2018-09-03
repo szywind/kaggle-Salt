@@ -18,11 +18,19 @@ ORIG_HEIGHT = 101
 INPUT_WIDTH = 128
 INPUT_HEIGHT = 128
 
+class PADCROPTYPE(Enum):
+    ZERO = 0
+    RECEPTIVE = 1
+    RESIZE = 2
+    NONE = 3
+MODE = PADCROPTYPE.NONE
+
 ##-------------------- Configurations ------------------------
 NUM_CLASS = 2 # background / foreground till now
 EPOCHS = 50
 PRINT_FREQ = 2
 STRATIFIED_BY_COVERAGE = False
+VALID_TTA = 1
 
 ##------------------- Setup Dataset ------------------------------
 # train/test dataset for head segmentation
@@ -54,14 +62,14 @@ TEST_DATASET = "testSet.txt"
 # MODEL_TYPE = MODEL.REFINED_UNET
 
 ## ----------------- resnet -----------------
-# USE_REFINE_NET = False
-# MODEL_DIR = "koutou_tf_180211"
-# MODEL_TYPE = MODEL.RESNET
-
-## ----------------- densenet -----------------
 USE_REFINE_NET = False
 MODEL_DIR = "koutou_tf_180211"
-MODEL_TYPE = MODEL.DENSENET
+MODEL_TYPE = MODEL.RESNET
+
+## ----------------- densenet -----------------
+# USE_REFINE_NET = False
+# MODEL_DIR = "koutou_tf_180211"
+# MODEL_TYPE = MODEL.DENSENET
 
 ## ----------------- inception -----------------
 # USE_REFINE_NET = False
