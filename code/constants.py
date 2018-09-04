@@ -62,14 +62,14 @@ TEST_DATASET = "testSet.txt"
 # MODEL_TYPE = MODEL.REFINED_UNET
 
 ## ----------------- resnet -----------------
-USE_REFINE_NET = False
-MODEL_DIR = "koutou_tf_180211"
-MODEL_TYPE = MODEL.RESNET
-
-## ----------------- densenet -----------------
 # USE_REFINE_NET = False
 # MODEL_DIR = "koutou_tf_180211"
-# MODEL_TYPE = MODEL.DENSENET
+# MODEL_TYPE = MODEL.RESNET
+
+## ----------------- densenet -----------------
+USE_REFINE_NET = False
+MODEL_DIR = "koutou_tf_180211"
+MODEL_TYPE = MODEL.DENSENET
 
 ## ----------------- inception -----------------
 # USE_REFINE_NET = False
@@ -79,3 +79,4 @@ MODEL_TYPE = MODEL.RESNET
 ## ---------- Configure train + test or test only ------------------
 IS_TRAIN = True
 DEBUG = False
+START = 0

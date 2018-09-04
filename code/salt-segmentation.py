@@ -51,8 +51,8 @@ class SaltSeg():
 
         elif MODEL_TYPE == MODEL.RESNET:
             # self.model = resnet_101.unet_resnet101(self.input_height, self.input_width, 3)
-            # self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
-            self.model = resnet_50.unet_resnet50(self.input_height, self.input_width, 3)
+            self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
+            # self.model = resnet_50.unet_resnet50(self.input_height, self.input_width, 3)
 
         elif MODEL_TYPE == MODEL.DENSENET:
             self.model = densenet161.unet_densenet161(self.input_height, self.input_width, 3)
@@ -295,7 +295,7 @@ class SaltSeg():
                     else:
                         yield x_batch, y_batch
 
-        if IS_TRAIN and fold_id >= 0:
+        if IS_TRAIN and fold_id >= START:
 
             callbacks = [EarlyStopping(monitor='val_loss',
                                            patience=10,
@@ -315,11 +315,11 @@ class SaltSeg():
 
             # Set Training Options
             # opt = optimizers.RMSprop(lr=0.0001)
-            # opt = optimizers.Adam(lr=1e-4)
-            opt = optimizers.SGD(lr=1e-2, momentum=0.9)
+            opt = optimizers.Adam(lr=1e-2)
+            # opt = optimizers.SGD(lr=1e-2, momentum=0.9)
 
             if MODE == PADCROPTYPE.RESIZE or MODE == PADCROPTYPE.NONE or MODE == PADCROPTYPE.ZERO:
-                loss = binary_crossentropy
+                loss = bce_dice_loss # binary_crossentropy
             elif MODE == PADCROPTYPE.RECEPTIVE:
                 loss = weightedBCE
 
