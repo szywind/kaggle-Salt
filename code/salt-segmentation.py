@@ -21,7 +21,7 @@ import glob
 import random
 from PIL import Image
 from sklearn.model_selection import train_test_split, StratifiedKFold, KFold
-import unet, pspnet, tiramisunet, resnet_50, resnet_101, resnet_152, densenet169, densenet161, densenet121
+import unet, pspnet, tiramisunet, resnet_34, resnet_50, resnet_101, resnet_152, densenet169, densenet161, densenet121
 
 K.set_image_dim_ordering('tf')
 
@@ -51,8 +51,10 @@ class SaltSeg():
 
         elif MODEL_TYPE == MODEL.RESNET:
             # self.model = resnet_101.unet_resnet101(self.input_height, self.input_width, 3)
-            self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
+            # self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
             # self.model = resnet_50.unet_resnet50(self.input_height, self.input_width, 3)
+            self.model = resnet_34.UResNet34(input_shape=(self.input_height, self.input_width, 3))
+
 
         elif MODEL_TYPE == MODEL.DENSENET:
             self.model = densenet161.unet_densenet161(self.input_height, self.input_width, 3)
