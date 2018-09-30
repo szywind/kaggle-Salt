@@ -1,4 +1,5 @@
-# https://github.com/qubvel/segmentation_models/blob/master/segmentation_models/unet/models.py
+# https://www.kaggle.com/meaninglesslives/pretrained-resnet34-in-keras/notebook
+# https://github.com/qubvel/segmentation_models/blob/master/segmentation_models/unet
 from keras import Model
 from keras.layers import UpSampling2D, Conv2D, BatchNormalization, Activation, Conv2DTranspose, ZeroPadding2D, Add, Input, \
     GlobalAveragePooling2D, MaxPooling2D, Dense
