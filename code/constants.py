@@ -61,7 +61,7 @@ TEST_DATASET = "testSet.txt"
 ## ----------------- densenet -----------------
 USE_REFINE_NET = False
 MODEL_DIR = "koutou_tf_180211"
-MODEL_TYPE = MODEL.DENSENET
+MODEL_TYPE = MODEL.RESNET
 
 ## ----------------- inception -----------------
 # USE_REFINE_NET = False

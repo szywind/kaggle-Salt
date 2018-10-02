@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from keras.models import Model
-from keras.layers import Input, merge, ZeroPadding2D, Dropout, Conv2D, Conv2DTranspose, LeakyReLU
+from keras.layers import Input, merge, ZeroPadding2D, Dropout, Conv2D, Conv2DTranspose, LeakyReLU, UpSampling2D
 from keras.layers.core import Dense, Dropout, Activation
 from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import AveragePooling2D, GlobalAveragePooling2D, MaxPooling2D
@@ -199,10 +199,11 @@ def dense_block(x, stage, nb_layers, nb_filter, growth_rate, dropout_rate=None, 
 
 def upsample(in_layer, down, nchan, dropout_rate = 0.15):
     up = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(in_layer)
-    up = BatchNormalization()(up)
-    # up = Dropout(dropout_rate)(up)
-    up = Activation('relu')(up)
-    up = Conv2DTranspose(nchan, (3, 3), strides=(2, 2), padding='same', kernel_initializer='he_uniform')(up)
+    # up = BatchNormalization()(up)
+    # # up = Dropout(dropout_rate)(up)
+    # up = Activation('relu')(up)
+    # up = Conv2DTranspose(nchan, (3, 3), strides=(2, 2), padding='same', kernel_initializer='he_uniform')(up)
+    up = UpSampling2D(size=(2, 2))(up)
     down = Conv2D(nchan, (1, 1), strides=(1, 1), kernel_initializer='he_uniform')(down)
     # up = UpSampling2D((2, 2))(up)
 
@@ -215,10 +216,10 @@ def upsample(in_layer, down, nchan, dropout_rate = 0.15):
     # up = Dropout(dropout_rate)(up)
     up = Activation('relu')(up)
 
-    # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
-    # up = BatchNormalization()(up)
-    # # up = Dropout(dropout_rate)(up)
-    # up = Activation('relu')(up)
+    up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
+    up = BatchNormalization()(up)
+    # up = Dropout(dropout_rate)(up)
+    up = Activation('relu')(up)
 
     # up = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(up)
     # up = BatchNormalization()(up)

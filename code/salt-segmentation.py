@@ -22,6 +22,8 @@ import random
 from PIL import Image
 from sklearn.model_selection import train_test_split, StratifiedKFold, KFold
 import unet, pspnet, tiramisunet, resnet_50, resnet_101, resnet_152, densenet169, densenet161, densenet121
+from resnet_34 import UResNet34
+from losses import keras_lovasz_hinge, keras_lovasz_softmax, mean_iou
 
 K.set_image_dim_ordering('tf')
 
@@ -51,8 +53,9 @@ class SaltSeg():
 
         elif MODEL_TYPE == MODEL.RESNET:
             # self.model = resnet_101.unet_resnet101(self.input_height, self.input_width, 3)
-            self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
+            # self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
             # self.model = resnet_50.unet_resnet50(self.input_height, self.input_width, 3)
+            self.model = UResNet34(input_shape=(self.input_height, self.input_width, 3))
 
         elif MODEL_TYPE == MODEL.DENSENET:
             self.model = densenet161.unet_densenet161(self.input_height, self.input_width, 3)
@@ -215,8 +218,8 @@ class SaltSeg():
                                                            scale_limit=(0, 0.125),
                                                            rotate_limit=(-0, 0))
                         img, mask = randomHorizontalFlip(img, mask)
-                        img = randomGammaCorrection(img)
-                        # img = randomIntensityAugmentation(img)
+                        # img = randomGammaCorrection(img)
+                        img = randomIntensityAugmentation(img)
 
                         # img, mask = randomRotationAndFlip(img, mask)
                         # draw(img, mask)
@@ -278,15 +281,25 @@ class SaltSeg():
                     else:
                         yield x_batch, y_batch
 
-        if IS_TRAIN and fold_id >= 2:
+        if IS_TRAIN and fold_id >= 0:
 
-            callbacks = [EarlyStopping(monitor='val_loss',
-                                           patience=10,
+            from snapshot import SnapshotCallbackBuilder
+            ''' Snapshot major parameters '''
+            M = 4  # number of snapshots
+            nb_epoch = T = 200  # number of epochs
+            alpha_zero = 1e-2  # initial learning rate
+
+            snapshot = SnapshotCallbackBuilder(T, M, alpha_zero)
+            snapshotcallbacks = snapshot.get_callbacks(model_prefix=self.model_path)  # Build snapshot callbacks]
+
+            callbacks = [
+                        EarlyStopping(monitor='val_loss',
+                                           patience=16,
                                            verbose=1,
                                            min_delta=1e-4),
                         ReduceLROnPlateau(monitor='val_loss',
-                                               factor=0.1,
-                                               patience=6,
+                                               factor=0.5,
+                                               patience=8,
                                                cooldown=2,
                                                verbose=1),
                         ModelCheckpoint(filepath=self.model_path,
@@ -295,11 +308,11 @@ class SaltSeg():
                         TensorBoard(log_dir='logs')]
 
 
-
             # Set Training Options
             # opt = optimizers.RMSprop(lr=0.0001)
             # opt = optimizers.Adam(lr=1e-4)
-            opt = optimizers.SGD(lr=1e-3, momentum=0.9)
+
+            opt = optimizers.SGD(lr=0.005, momentum=0.9, decay=0.0001)
 
             if USE_REFINE_NET:
                 self.model.compile(optimizer=opt,
@@ -310,7 +323,7 @@ class SaltSeg():
             else:
                 self.model.compile(optimizer=opt,
                                    loss=binary_crossentropy,
-                                   metrics=[dice_score]
+                                   metrics=[dice_score, "acc", mean_iou]
                                )
 
             self.model.fit_generator(
@@ -328,6 +341,28 @@ class SaltSeg():
                 epochs=self.epochs,
                 verbose=2,
                 callbacks=callbacks,
+                validation_data=valid_generator(),
+                validation_steps=math.ceil(nValid / float(self.batch_size)))
+
+
+            if USE_REFINE_NET:
+                self.model.compile(optimizer=opt,
+                                   loss=bce_dice_loss,
+                                   loss_weights=[1, 1],
+                                   metrics=[dice_score]
+                                   )
+            else:
+                self.model.compile(optimizer=opt,
+                                   loss=keras_lovasz_hinge,
+                                   metrics=[dice_score, "acc", mean_iou]
+                               )
+
+            self.model.fit_generator(
+                generator=train_generator(),
+                steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+                epochs=self.epochs,
+                verbose=2,
+                callbacks=snapshotcallbacks,
                 validation_data=valid_generator(),
                 validation_steps=math.ceil(nValid / float(self.batch_size)))
 
