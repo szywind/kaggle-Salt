@@ -244,9 +244,11 @@ def unet_densenet161(img_rows, img_cols, color_type, num_classes=1):
         nchan  = nchan // 2
     x = upsample(x, input, nchan)
 
-    output1 = Conv2D(num_classes, (1, 1), activation='sigmoid')(x)
-
+    # output1 = Conv2D(num_classes, (1, 1), activation='sigmoid')(x)
+    output1 = Conv2D(num_classes, (1, 1), padding='same', name='final_conv')(x)
     if not USE_REFINE_NET:
+        output1 = Activation("sigmoid", name="sigmoid")(output1)
+
         model = Model(inputs=input, outputs=[output1])
 
         # model.load_weights('../weights/head-segmentation-model.h5')

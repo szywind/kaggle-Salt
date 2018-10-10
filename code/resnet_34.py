@@ -42,11 +42,14 @@ def Upsample2D_block(filters, stage, kernel_size=(3,3), upsample_rate=(2,2),
         if batchnorm:
             x = BatchNormalization(name=bn_name+'1')(x)
         x = Activation('relu', name=relu_name+'1')(x)
+        # x = ELU(1)(x)
+
 
         x = Conv2D(filters, kernel_size, padding='same', name=conv_name+'2')(x)
         if batchnorm:
             x = BatchNormalization(name=bn_name+'2')(x)
         x = Activation('relu', name=relu_name+'2')(x)
+        # x = ELU(1)(x)
 
         return x
     return layer
@@ -289,9 +292,14 @@ def build_unet(backbone, classes, last_block_filters, skip_layers,
         activation = 'sigmoid'
 
     x = Conv2D(classes, (3,3), padding='same', name='final_conv')(x)
-    x = Activation(activation, name=activation)(x)
 
-    model = Model(input, x)
+    logit = x
+    # model = Model(input, outputs=[logit])
+
+    prob = Activation(activation, name=activation)(logit)
+
+    model = Model(input, outputs=[prob])
+
 
     return model
 
@@ -449,7 +457,7 @@ def load_model_weights(weights_collection, model, dataset, classes, include_top)
 
 
 
-def UResNet34(input_shape=(None, None, 3), classes=1, decoder_filters=16, decoder_block_type='transpose',
+def UResNet34(input_shape=(None, None, 3), classes=1, decoder_filters=16, decoder_block_type='upsampling',
                        encoder_weights=None, input_tensor=None, activation='sigmoid', **kwargs):
 
 #     backbone = ResnetBuilder.build_resnet_34(input_shape=input_shape,input_tensor=input_tensor)

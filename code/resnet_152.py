@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from keras.optimizers import SGD, RMSpropAccum
+from keras.optimizers import SGD # RMSpropAccum
 from keras.layers import Input, Dense, Conv2D, MaxPooling2D, AveragePooling2D, ZeroPadding2D, Flatten, Activation, Dropout, Conv2DTranspose, LeakyReLU
 from keras.layers.merge import add, concatenate, average
 from keras.layers.normalization import BatchNormalization

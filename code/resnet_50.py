@@ -23,7 +23,15 @@ from keras import backend as K
 from keras.engine.topology import get_source_inputs
 from keras.utils import layer_utils
 from keras.utils.data_utils import get_file
-from keras.applications.imagenet_utils import decode_predictions, preprocess_input, _obtain_input_shape
+from keras.applications.imagenet_utils import decode_predictions, preprocess_input
+
+import keras
+from distutils.version import StrictVersion
+
+if StrictVersion(keras.__version__) < StrictVersion('2.2.0'):
+    from keras.applications.imagenet_utils import _obtain_input_shape
+else:
+    from keras_applications.imagenet_utils import _obtain_input_shape
 
 from constants import *
 

@@ -197,14 +197,94 @@ def randomHorizontalFlip(image, mask, u=0.5):
     return image, mask
 
 
-def randomGammaCorrection(image):
-    lower = 0.75
-    upper = 1.25
-    mu = 1
-    sigma = 0.25
-    alpha = stats.truncnorm((lower-mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
-    image = (pow(image/255.0, alpha.rvs(1)[0]) * 255).astype(np.uint8)
+def randomGammaCorrection(image, u=0.5):
+    if np.random.random() < u:
+        lower = 0.75
+        upper = 1.25
+        mu = 1
+        sigma = 0.25
+        alpha = stats.truncnorm((lower-mu) / sigma, (upper - mu) / sigma, loc=mu, scale=sigma)
+        image = (pow(image/255.0, alpha.rvs(1)[0]) * 255).astype(np.uint8)
     return image
+
+def randomSymmetricPadding(image, mask, u=0.5):
+    if np.random.random() < u:
+        orig_width = image.shape[1]
+        image = np.pad(image, ((0, 0), (image.shape[1], image.shape[1]), (0, 0)), 'symmetric')
+        mask = np.pad(mask, ((0, 0), (mask.shape[1], mask.shape[1])), 'symmetric')
+
+        start = np.random.randint(0, image.shape[1] - orig_width)
+        image = image[:, start: start + orig_width, :]
+        mask = mask[:, start: start + orig_width]
+
+    return image, mask
+
+def random_crop(img, dstSize=(INPUT_HEIGHT, INPUT_WIDTH), center=False):
+    import random
+    if img.ndim < 4:
+        srcH, srcW = img.shape[:2]
+    else:
+        srcH, srcW = img.shape[1:3]
+
+    dstH, dstW = dstSize
+
+    if srcH <= dstH or srcW <= dstW:
+        return img
+    if center:
+        y0 = int((srcH - dstH) / 2)
+        x0 = int((srcW - dstW) / 2)
+    else:
+        y0 = random.randrange(0, srcH - dstH)
+        x0 = random.randrange(0, srcW - dstW)
+
+    if img.ndim < 4:
+        return img[y0:y0+dstH, x0:x0+dstW]
+    else:
+        return img[:, y0:y0+dstH, x0:x0+dstW, :]
+
+def transform(*pair, center=False, padding=20, dstSize = (INPUT_HEIGHT, INPUT_WIDTH)):
+    def reflectivePaddingAndCrop():
+        result = []
+        for image in pair:
+            if image.ndim == 3:
+                image = np.pad(image, ((padding, padding), (padding, padding), (0, 0)), 'reflect')
+            else:
+                image = np.pad(image, ((padding, padding), (padding, padding)), 'reflect')
+            result.append(random_crop(image, dstSize=dstSize, center=center))
+        return result
+
+    def zeroPaddingAndCrop():
+        result = []
+        for image in pair:
+            if image.ndim == 3:
+                image = np.pad(image, ((padding, padding), (padding, padding), (0, 0)), 'constant', constant_values=((0, 0), (0, 0), (0, 0)))
+            else:
+                image = np.pad(image, ((padding, padding), (padding, padding)), 'constant', constant_values=((0, 0), (0, 0)))
+            result.append(random_crop(image, dstSize=dstSize, center=center))
+        return result
+
+    def resizeAndCrop():
+        result = []
+        for image in pair:
+            image = cv2.resize(image, (dstSize[1] + padding, dstSize[0] + padding), interpolation=cv2.INTER_LINEAR)
+            result.append(random_crop(image, dstSize=dstSize, center=center))
+        return result
+
+    def resize():
+        result = []
+        for image in pair:
+            image = cv2.resize(image, (dstSize[1], dstSize[0]), interpolation=cv2.INTER_LINEAR)
+            result.append(image)
+        return result
+
+    if MODE == PADCROPTYPE.ZERO:
+        return zeroPaddingAndCrop()
+    elif MODE == PADCROPTYPE.RECEPTIVE:
+        return reflectivePaddingAndCrop()
+    elif MODE == PADCROPTYPE.RESIZE:
+        return resizeAndCrop()
+    elif MODE == PADCROPTYPE.NONE:
+        return resize()
 
 
 def run_length_encode(mask):
@@ -473,6 +553,8 @@ def find_best_threshold(ious, thresholds = np.linspace(0, 1, 50)):
 
 def evaluate_ious(y_valid, pred_valid):
     thresholds = np.linspace(0, 1, 50)
+    # thresholds = np.log(thresholds / (1 - thresholds))
+
     ious = np.array(
         [iou_metric_batch(y_valid, np.int32(pred_valid > threshold)) for threshold in thresholds])
     return ious
@@ -515,6 +597,9 @@ def RLenc(img, order='F', format=True):
         return z[:-1]
     else:
         return runs
+
+def sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-x))
 
 def upsample(img):
     if ORIG_HEIGHT == INPUT_HEIGHT and ORIG_WIDTH == INPUT_WIDTH:

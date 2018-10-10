@@ -95,6 +95,7 @@ import tensorflow as tf
 import numpy as np
 
 
+# code download from: https://github.com/bermanmaxim/LovaszSoftmax
 def lovasz_grad(gt_sorted):
     """
     Computes gradient of the Lovasz extension w.r.t sorted errors
@@ -110,7 +111,6 @@ def lovasz_grad(gt_sorted):
 
 # --------------------------- BINARY LOSSES ---------------------------
 
-
 def lovasz_hinge(logits, labels, per_image=True, ignore=None):
     """
     Binary Lovasz hinge loss
@@ -125,11 +125,8 @@ def lovasz_hinge(logits, labels, per_image=True, ignore=None):
             log, lab = tf.expand_dims(log, 0), tf.expand_dims(lab, 0)
             log, lab = flatten_binary_scores(log, lab, ignore)
             return lovasz_hinge_flat(log, lab)
-
         losses = tf.map_fn(treat_image, (logits, labels), dtype=tf.float32)
-        print("pre:", tf.shape(losses))
-        losses.set_shape((None,))
-        print("post:", tf.shape(losses))
+        # losses.set_shape((None,))
 
         loss = tf.reduce_mean(losses)
     else:
@@ -152,7 +149,8 @@ def lovasz_hinge_flat(logits, labels):
         errors_sorted, perm = tf.nn.top_k(errors, k=tf.shape(errors)[0], name="descending_sort")
         gt_sorted = tf.gather(labelsf, perm)
         grad = lovasz_grad(gt_sorted)
-        loss = tf.tensordot(tf.nn.relu(errors_sorted), tf.stop_gradient(grad), 1, name="loss_non_void")
+        #loss = tf.tensordot(tf.nn.relu(errors_sorted), tf.stop_gradient(grad), 1, name="loss_non_void")
+        loss = tf.tensordot(tf.nn.elu(errors_sorted), tf.stop_gradient(grad), 1, name="loss_non_void")
         return loss
 
     # deal with the void prediction case (only void pixels)
@@ -179,7 +177,12 @@ def flatten_binary_scores(scores, labels, ignore=None):
     vlabels = tf.boolean_mask(labels, valid, name='valid_labels')
     return vscores, vlabels
 
-
+def lovasz_loss(y_true, y_pred):
+    y_true, y_pred = K.cast(K.squeeze(y_true, -1), 'int32'), K.cast(K.squeeze(y_pred, -1), 'float32')
+    #logits = K.log(y_pred / (1. - y_pred))
+    logits = y_pred #Jiaxin
+    loss = lovasz_hinge(logits, y_true, per_image = True, ignore = None)
+    return loss
 # --------------------------- MULTICLASS LOSSES ---------------------------
 
 
@@ -201,7 +204,6 @@ def lovasz_softmax(probas, labels, classes='all', per_image=False, ignore=None, 
             return lovasz_softmax_flat(prob, lab, classes=classes)
 
         losses = tf.map_fn(treat_image, (probas, labels), dtype=tf.float32)
-        losses.set_shape((None,))
 
         loss = tf.reduce_mean(losses)
     else:
@@ -272,7 +274,8 @@ def keras_lovasz_hinge(labels, logits):
 
 def mean_iou(y_true, y_pred):
     prec = []
-    for t in np.arange(0.5, 1.0, 0.05):
+    for t in np.arange(0.3, 0.8, 0.05):
+        # t = np.log(t / (1 - t))
         y_pred_ = tf.to_int32(y_pred > t)
         score, up_opt = tf.metrics.mean_iou(y_true, y_pred_, 2)
         K.get_session().run(tf.local_variables_initializer())
@@ -281,6 +284,39 @@ def mean_iou(y_true, y_pred):
         prec.append(score)
     return K.mean(K.stack(prec), axis=0)
 
+def mean_iou_2(y_true, logit):
+    prec = []
+    for t in np.arange(0.3, 0.8, 0.05):
+        t = np.log(t / (1 - t))
+        y_pred_ = tf.to_int32(logit > t)
+        score, up_opt = tf.metrics.mean_iou(y_true, y_pred_, 2)
+        K.get_session().run(tf.local_variables_initializer())
+        with tf.control_dependencies([up_opt]):
+            score = tf.identity(score)
+        prec.append(score)
+    return K.mean(K.stack(prec), axis=0)
+
+def get_iou_vector(A, B):
+    batch_size = A.shape[0]
+    metric = []
+    for batch in range(batch_size):
+        t, p = A[batch]>0, B[batch]>0
+        intersection = np.logical_and(t, p)
+        union = np.logical_or(t, p)
+        iou = (np.sum(intersection > 0) + 1e-10 )/ (np.sum(union > 0) + 1e-10)
+        thresholds = np.arange(0.5, 1, 0.05)
+        s = []
+        for thresh in thresholds:
+            s.append(iou > thresh)
+        metric.append(np.mean(s))
+
+    return np.mean(metric)
+
+def my_iou_metric(label, pred):
+    return tf.py_func(get_iou_vector, [label, pred>0.5], tf.float64)
+
+def my_iou_metric_2(label, pred):
+    return tf.py_func(get_iou_vector, [label, pred >0], tf.float64)
 
 def focal_loss(y_true, y_pred):
     gamma = 2 # 0.75

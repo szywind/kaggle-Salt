@@ -12,15 +12,26 @@ class MODEL(Enum):
 INPUT_PATH = '../input/'
 OUTPUT_PATH = '../output/test-result/'
 
-##------------------- Setup InputSize ----------------------------
-ORIG_WIDTH = 101
-ORIG_HEIGHT = 101
-INPUT_WIDTH = 128
-INPUT_HEIGHT = 128
+##------------------- Padding Mode ----------------------------
+class PADCROPTYPE(Enum):
+    ZERO = 0
+    RECEPTIVE = 1
+    RESIZE = 2
+    NONE = 3
+MODE = PADCROPTYPE.RECEPTIVE
 
 ##-------------------- Configurations ------------------------
+ORIG_WIDTH = ORIG_HEIGHT = 101
+MIDDLE_WIDTH = MIDDLE_HEIGHT = 192
+INPUT_WIDTH = INPUT_HEIGHT = 224
+PAD_FRONT = 16
+PAD_END = 16
+
+BN_SIZE = 16
+EPOCHS = 200
+CV_FOLD = 10
+N_TTA = 2
 NUM_CLASS = 2 # background / foreground till now
-EPOCHS = 50
 PRINT_FREQ = 2
 STRATIFIED_BY_COVERAGE = False
 
@@ -28,6 +39,8 @@ STRATIFIED_BY_COVERAGE = False
 # train/test dataset for head segmentation
 TRAIN_DATASET = "trainSet.txt"
 TEST_DATASET = "testSet.txt"
+
+NET_FILE = "../weights/model.json"
 
 # train/test dataset for portrait segmentation
 # TRAIN_DATASET = "trainSet-0.9-v2.3u.txt"
@@ -71,3 +84,4 @@ MODEL_TYPE = MODEL.RESNET
 ## ---------- Configure train + test or test only ------------------
 IS_TRAIN = True
 DEBUG = False
+START = 3

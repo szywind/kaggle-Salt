@@ -68,7 +68,7 @@ class SnapshotCallbackBuilder:
             os.makedirs('weights/')
 
         callback_list = [callbacks.ModelCheckpoint(model_prefix, monitor="val_loss",
-                                                    save_best_only=True, save_weights_only=True),
+                                                    save_best_only=True, save_weights_only=True, verbose=1),
                          callbacks.LearningRateScheduler(schedule=self._cosine_anneal_schedule),
                          SnapshotModelCheckpoint(self.T, self.M, fn_prefix='../weights/%s' % model_prefix[:model_prefix.rfind(".")])]
 
