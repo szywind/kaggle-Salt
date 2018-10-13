@@ -116,14 +116,32 @@ class SaltSeg():
             # self.coverage_valid = self.df_train.stratify_class.values[valid_index]
 
             print("Train {}-th fold".format(fold_id))
-            y_valid_i, p_valid_i = self.train(fold_id, ids_train, ids_valid)
-            print("y_valid_i, p_valid_i:", y_valid_i.shape, p_valid_i.shape)
 
-            ious_i = evaluate_ious(y_valid_i, p_valid_i)
-            for iou in ious_i:
-                print(iou)
 
-            ious += ious_i
+            if not SNAPSHOT_ENSEMBLING:
+                self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
+                y_valid_i, p_valid_i = self.train(fold_id, ids_train, ids_valid)
+                print("y_valid_i, p_valid_i:", y_valid_i.shape, p_valid_i.shape)
+                ious_i = evaluate_ious(y_valid_i, p_valid_i)
+                print(list(ious_i))
+
+                ious += ious_i
+                print("Sum: ", list(ious))
+
+            else:
+                for j in range(M+1):
+                    if j == 0:
+                        continue
+                        self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
+                    else: # snapshot ensembling
+                        self.model_path = '../weights/salt-segmentation-model{}-{}.h5'.format(fold_id, j)
+                    y_valid_i, p_valid_i = self.train(fold_id, ids_train, ids_valid)
+                    print("y_valid_i, p_valid_i:", y_valid_i.shape, p_valid_i.shape)
+
+                    ious_i = evaluate_ious(y_valid_i, p_valid_i)
+                    print(list(ious_i))
+                    ious += ious_i
+                print("Sum: ", list(ious))
             fold_id += 1
 
         ## find best threshold
@@ -139,7 +157,7 @@ class SaltSeg():
 
 
     def train(self, fold_id, ids_train, ids_valid):
-        self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
+        # self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
         try:
             self.model.load_weights(self.model_path)
         except:
@@ -306,7 +324,7 @@ class SaltSeg():
 
             from snapshot import SnapshotCallbackBuilder
             ''' Snapshot major parameters '''
-            M = 4  # number of snapshots
+
             nb_epoch = T = EPOCHS  # number of epochs
             alpha_zero = 1e-2  # initial learning rate
 
@@ -365,6 +383,13 @@ class SaltSeg():
         return y_valid, p_valid
 
     def test_cv(self):
+        self.set_model()
+
+        try:
+            self.best_threshold
+        except AttributeError:
+            self.best_threshold = DEFAULT_THRESHOLD
+        print("THESHOLD: ", self.best_threshold)
         def get_mask(pred):
             # TODO
             # pred = pred[PAD_FRONT:-PAD_END, PAD_FRONT:-PAD_END]
@@ -380,13 +405,41 @@ class SaltSeg():
             return mask
 
         if DEBUG:
-            pred_test = self.test(0)
+            fold_id = 0
+            if not SNAPSHOT_ENSEMBLING:
+                self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
+                pred_test = self.test(fold_id)
+            else:
+                pred_test = 0
+                for j in range(M + 1):
+                    if j == 0:
+                        continue
+                        print("1111111111111111111111111111111111111111111111111111111")
+                        self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
+                    else:
+                        self.model_path = '../weights/salt-segmentation-model{}-{}.h5'.format(fold_id, j)
+                    pred_test_i = self.test(0)
+                    pred_test += pred_test_i
+                pred_test /= float(M)
+
         else:
             pred_test = 0
-            for fold_id in range(CV_FOLD):
-                pred_test_i = self.test(fold_id)
-                pred_test += pred_test_i
-            pred_test /= float(CV_FOLD)
+            if not SNAPSHOT_ENSEMBLING:
+                for fold_id in range(CV_FOLD):
+                    self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
+                    pred_test_i = self.test(fold_id)
+                    pred_test += pred_test_i
+                pred_test /= float(CV_FOLD)
+            else:
+                for fold_id in range(CV_FOLD):
+                    for j in range(M+1):
+                        if j == 0:
+                            self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
+                        else:
+                            self.model_path = '../weights/salt-segmentation-model{}-{}.h5'.format(fold_id, j)
+                        pred_test_i = self.test(fold_id)
+                        pred_test += pred_test_i
+                pred_test /= float(CV_FOLD*(M+1))
 
         pred_dict = {idx: RLenc(np.round(get_mask(pred_test[i])))
                      for i, idx in enumerate(tqdm_notebook(self.ids_test))}
@@ -396,7 +449,7 @@ class SaltSeg():
         sub.to_csv('submission.csv')
 
     def test(self, fold_id=''):
-        self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
+        # self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
 
         if not os.path.isfile(NET_FILE) or not os.path.isfile(self.model_path):
             raise RuntimeError("No model found.")
