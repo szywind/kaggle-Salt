@@ -53,7 +53,7 @@ class SaltSeg():
             # self.model = UResNet34(input_shape=(INPUT_HEIGHT, INPUT_WIDTH, 3))
             self.model = Unet(backbone_name='resnet34', encoder_weights='imagenet', freeze_encoder=True)
 
-        self.model.summary()
+        # self.model.summary()
 
         with open(NET_FILE, 'w') as json_file:
             json_file.write(self.model.to_json())

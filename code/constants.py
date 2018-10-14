@@ -36,7 +36,7 @@ PRINT_FREQ = 2
 STRATIFIED_BY_COVERAGE = False
 
 M = 4  # number of snapshots
-SNAPSHOT_ENSEMBLING = False
+SNAPSHOT_ENSEMBLING = True
 ##------------------- Setup Dataset ------------------------------
 # train/test dataset for head segmentation
 TRAIN_DATASET = "trainSet.txt"
@@ -45,8 +45,7 @@ TEST_DATASET = "testSet.txt"
 NET_FILE = "../weights/model.json"
 
 # train/test dataset for portrait segmentation
-# TRAIN_DATASET = "trainSet-0.9-v2.3u.txt"
-# TEST_DATASET = "testSet-0.9-v2.3u.txt"
+# TRAIN_DATASET = "trainSet-0.9-v2.3u.txth
 
 ## ----------------- Setup Model ----------------------------------
 ## ----------------- pspnet2 -----------------
@@ -84,7 +83,7 @@ MODEL_TYPE = MODEL.RESNET
 # MODEL_TYPE = MODEL.INCEPTION
 
 ## ---------- Configure train + test or test only ------------------
-IS_TRAIN = True
+IS_TRAIN = False
 DEBUG = False
 START = 8
-DEFAULT_THRESHOLD = 0.5
+DEFAULT_THRESHOLD = 0.5102040816326531 # 33.816499999999984 0.5102040816326531
