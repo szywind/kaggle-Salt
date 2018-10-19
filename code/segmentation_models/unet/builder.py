@@ -1,12 +1,14 @@
 from keras.layers import Conv2D
 from keras.layers import Activation
 from keras.models import Model
+from keras.layers import GlobalAveragePooling2D, Dense, Flatten
+from constants import INPUT_WIDTH, INPUT_HEIGHT
 
 from .blocks import Transpose2D_block
 from .blocks import Upsample2D_block
 from ..utils import get_layer_number, to_tuple
 
-from keras.layers import UpSampling2D, Dropout, BatchNormalization
+from keras.layers import UpSampling2D, Dropout, BatchNormalization, AveragePooling2D
 from keras.layers import concatenate
 
 import keras.backend as K
@@ -42,6 +44,18 @@ def build_unet(backbone, classes, skip_connection_layers,
 
     input = backbone.input
     x = backbone.output
+
+
+    # TODO
+
+    # image_pool = GlobalAveragePooling2D()(x)
+    image_pool = AveragePooling2D(pool_size=4)(x)
+
+    image_pool = Conv2D(64, (1,1))(image_pool)
+
+    # classify = Flatten()(image_pool)
+    classify = Dense(1, activation='sigmoid')(image_pool)
+    up_image_pool = UpSampling2D(size=(INPUT_HEIGHT, INPUT_WIDTH))(image_pool)
 
     # conv_params = get_conv_params()
     # bn_params = get_bn_params()
@@ -90,10 +104,13 @@ def build_unet(backbone, classes, skip_connection_layers,
         print(cache[n_upsample_blocks-1-i]._keras_shape)
     x = concatenate([l for l in cache])
     x = Dropout(0.5)(x)
+    hypercolumn = Conv2D(classes, (3,3), padding='same', name='final_conv')(x)
 
-    x = Conv2D(classes, (3,3), padding='same', name='final_conv')(x)
+    x = concatenate([hypercolumn, up_image_pool])
+    x = Conv2D(classes, (3, 3), padding='same', name='final_final_conv')(x)
+
     x = Activation(activation, name=activation)(x)
 
-    model = Model(input, x)
+    model = Model(input, [classify, hypercolumn, x])
 
     return model

@@ -183,6 +183,14 @@ def lovasz_loss(y_true, y_pred):
     logits = y_pred #Jiaxin
     loss = lovasz_hinge(logits, y_true, per_image = True, ignore = None)
     return loss
+
+
+def lovasz_loss_nonempty(y_true, y_pred):
+    loss = tf.cond(tf.less(tf.reduce_max(y_true), 0.5),
+                   lambda: 0.,
+                   lambda: lovasz_loss(y_true, y_pred))
+    return loss
+
 # --------------------------- MULTICLASS LOSSES ---------------------------
 
 

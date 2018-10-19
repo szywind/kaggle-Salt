@@ -35,7 +35,7 @@ NUM_CLASS = 2 # background / foreground till now
 PRINT_FREQ = 2
 STRATIFIED_BY_COVERAGE = False
 
-M = 4  # number of snapshots
+M = 8  # number of snapshots
 SNAPSHOT_ENSEMBLING = True
 ##------------------- Setup Dataset ------------------------------
 # train/test dataset for head segmentation
@@ -85,5 +85,10 @@ MODEL_TYPE = MODEL.RESNET
 ## ---------- Configure train + test or test only ------------------
 IS_TRAIN = False
 DEBUG = False
-START = 8
-DEFAULT_THRESHOLD = 0.5102040816326531 # 33.816499999999984 0.5102040816326531
+START = 0
+DEFAULT_THRESHOLD = 0.6122448979591836 # 0.5714285714285714 # 33.816499999999984 0.5102040816326531
+SELECTED_FOLDS = [0]
+SELECTED_MODEL = [4, 8]
+PIXEL_THRESHOLD = 10
+
+

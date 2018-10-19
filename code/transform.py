@@ -379,15 +379,15 @@ def train_augment(image,mask):
             image, mask = do_shift_scale_rotate2(image, mask,
                                                shift_limit=(-0.0, 0.0),
                                                scale_limit=(0, 0),
-                                               rotate_limit=(-10, 10))
+                                               rotate_limit=(0, 0))
 
 
     # print("image: ", image.shape, mask.shape, "|   mask:", image.dtype, mask.dtype)
 
     from constants import INPUT_HEIGHT, INPUT_WIDTH
 
-    c = np.random.choice(5)
-    if c < 2:
+    c = np.random.choice(7)
+    if c < 2 or c >= 5:
         image, mask = do_resize2(image, mask, INPUT_HEIGHT, INPUT_WIDTH)
     if c == 2:
         image, mask = do_center_pad_to_factor2(image, mask, factor=32, borderMode=cv2.BORDER_REPLICATE)

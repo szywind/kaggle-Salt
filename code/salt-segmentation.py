@@ -14,7 +14,7 @@ from keras import optimizers
 import math
 from sklearn.model_selection import train_test_split, StratifiedKFold, KFold
 import unet, pspnet, tiramisunet, resnet_50, resnet_101, resnet_152, densenet169, densenet161, densenet121
-from losses import lovasz_loss, my_iou_metric, my_iou_metric_2
+from losses import lovasz_loss, my_iou_metric, my_iou_metric_2, lovasz_loss_nonempty
 from keras.losses import binary_crossentropy
 from segmentation_models import Unet
 from segmentation_models.backbones import get_preprocessing
@@ -26,6 +26,7 @@ from constants import *
 from helpers import bce_dice_loss, dice_score, evaluate_ious, find_best_threshold, RLenc, focal_loss
 
 import keras.backend as K
+from keras.models import Model
 
 K.set_image_dim_ordering('tf')
 
@@ -51,7 +52,7 @@ class SaltSeg():
             # self.model = resnet_152.unet_resnet152(self.input_height, self.input_width, 3)
             # self.model = resnet_50.unet_resnet50(self.input_height, self.input_width, 3)
             # self.model = UResNet34(input_shape=(INPUT_HEIGHT, INPUT_WIDTH, 3))
-            self.model = Unet(backbone_name='resnet34', encoder_weights='imagenet', freeze_encoder=True)
+            self.model = Unet(backbone_name='resnet34', encoder_weights='imagenet', freeze_encoder=False)
 
         # self.model.summary()
 
@@ -107,6 +108,9 @@ class SaltSeg():
 
         # skf = StratifiedKFold(n_splits=CV_FOLD, random_state=37, shuffle=True)
         # for train_index, valid_index in skf.split(self.df_train.index.values, self.df_train.stratify_class.values):
+            if fold_id not in SELECTED_FOLDS:
+                fold_id += 1
+                continue
             if DEBUG and fold_id > 0:
                 break;
             self.set_model()
@@ -130,7 +134,7 @@ class SaltSeg():
 
             else:
                 for j in range(M+1):
-                    if j == 0:
+                    if j == 0 or j not in SELECTED_MODEL:
                         continue
                         self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
                     else: # snapshot ensembling
@@ -139,7 +143,7 @@ class SaltSeg():
                     print("y_valid_i, p_valid_i:", y_valid_i.shape, p_valid_i.shape)
 
                     ious_i = evaluate_ious(y_valid_i, p_valid_i)
-                    print(list(ious_i))
+                    print(j, list(ious_i))
                     ious += ious_i
                 print("Sum: ", list(ious))
             fold_id += 1
@@ -174,14 +178,19 @@ class SaltSeg():
                 for start in range(0, nTrain, BN_SIZE):
                     x_batch = []
                     y_batch = []
+                    label_batch = []
                     end = min(start + BN_SIZE, nTrain)
                     ids_train_batch = ids_train[start:end]
 
                     for img_name in ids_train_batch:
                         img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png")) / 255
                         mask = cv2.imread(os.path.join(INPUT_PATH, "train", "masks", img_name + ".png"), cv2.IMREAD_GRAYSCALE) / 255
-                        if np.sum(mask < 0.5) < 10:
-                            continue
+                        # if np.sum(mask > 0.5) < 10:
+                        #     continue
+                        if np.sum(mask > 0.5) == 0:
+                            label_batch.append(1)
+                        else:
+                            label_batch.append(0)
                         if MIDDLE_HEIGHT != ORIG_HEIGHT or MIDDLE_WIDTH != ORIG_WIDTH:
                             img = cv2.resize(img, (MIDDLE_WIDTH, MIDDLE_HEIGHT), interpolation=cv2.INTER_LINEAR)
                             mask = cv2.resize(mask, (MIDDLE_WIDTH, MIDDLE_HEIGHT), interpolation=cv2.INTER_LINEAR)
@@ -220,24 +229,31 @@ class SaltSeg():
 
                     x_batch = np.array(x_batch, np.float32)
                     y_batch = np.array(y_batch, np.float32)
+                    label_batch = np.array(label_batch, np.float32)
+                    label_batch = label_batch.reshape([-1,1,1,1])
 
                     if USE_REFINE_NET:
                         yield x_batch, [y_batch, y_batch]
                     else:
-                        yield x_batch, [y_batch]
+                        yield x_batch, [label_batch, y_batch, y_batch]
 
         def valid_generator():
             while True:
                 for start in range(0, nValid, BN_SIZE):
                     x_batch = []
                     y_batch = []
+                    label_batch = []
+
                     end = min(start + BN_SIZE, nValid)
                     ids_valid_batch = ids_valid[start:end]
                     for img_name in ids_valid_batch:
                         img = cv2.imread(os.path.join(INPUT_PATH, "train", "images", img_name + ".png")) / 255
                         mask = cv2.imread(os.path.join(INPUT_PATH, "train", "masks", img_name + ".png"), cv2.IMREAD_GRAYSCALE) / 255  # [..., 0]
 
-
+                        if np.sum(mask > 0.5) == 0:
+                            label_batch.append(1)
+                        else:
+                            label_batch.append(0)
                         img = cv2.resize(img, (INPUT_WIDTH, INPUT_HEIGHT), interpolation=cv2.INTER_LINEAR)
                         mask = cv2.resize(mask, (INPUT_WIDTH, INPUT_HEIGHT), interpolation=cv2.INTER_LINEAR)
                         mask = (mask > 0.5).astype(np.float32)
@@ -252,25 +268,33 @@ class SaltSeg():
 
                     x_batch = np.array(x_batch, np.float32)
                     y_batch = np.array(y_batch, np.float32)
+                    label_batch = np.array(label_batch, np.float32)
+                    label_batch = label_batch.reshape([-1,1,1,1])
+
+
                     if USE_REFINE_NET:
                         yield x_batch, [y_batch, y_batch]
                     else:
-                        yield x_batch, [y_batch]
+                        yield x_batch, [label_batch, y_batch, y_batch]
+
+        input_x = self.model.layers[0].input
+        output_layer = self.model.layers[-1].input
+        outputs = self.model.outputs
 
         if IS_TRAIN and fold_id >= START:
-            self.model.compile('sgd', 'binary_crossentropy', ['binary_accuracy'])
-
-            # pretrain model decoder
-            self.model.fit_generator(
-                generator=train_generator(),
-                steps_per_epoch=math.ceil(nTrain / float(BN_SIZE)),
-                epochs=5,
-                verbose=2,
-                validation_data=valid_generator(),
-                validation_steps=math.ceil(nValid / float(BN_SIZE)))
-
-            # release all layers for training
-            set_trainable(self.model)  # set all layers trainable and recompile model
+            # self.model.compile('sgd', 'binary_crossentropy', ['binary_accuracy'])
+            #
+            # # pretrain model decoder
+            # self.model.fit_generator(
+            #     generator=train_generator(),
+            #     steps_per_epoch=math.ceil(nTrain / float(BN_SIZE)),
+            #     epochs=5,
+            #     verbose=2,
+            #     validation_data=valid_generator(),
+            #     validation_steps=math.ceil(nValid / float(BN_SIZE)))
+            #
+            # # release all layers for training
+            # set_trainable(self.model)  # set all layers trainable and recompile model
 
             ''' first stage training with bce loss '''
 
@@ -294,29 +318,39 @@ class SaltSeg():
             # Set Training Options
             # opt = optimizers.RMSprop(lr=0.0001)
             # opt = optimizers.Adam(lr=1e-4)
-
             opt = optimizers.SGD(lr=1e-2, momentum=0.9, decay=0.0001)
 
+            # TODO
+            model_tmp = Model(input_x, outputs[-1])
+
             if USE_REFINE_NET:
-                self.model.compile(optimizer=opt,
+                model_tmp.compile(optimizer=opt,
                                    loss=bce_dice_loss,
                                    loss_weights=[1, 1],
                                    metrics=[dice_score]
                                    )
             else:
-                self.model.compile(optimizer=opt,
+                model_tmp.compile(optimizer=opt,
                                    # loss=[focal_loss(0.75)],
                                    loss=[binary_crossentropy],
                                    metrics=[my_iou_metric] # 'acc'
                                )
 
-            self.model.fit_generator(
-                generator=train_generator(),
+            def train_generator_stage_one():
+                for x, y in train_generator():
+                    yield x, y[-1]
+
+            def valid_generator_stage_one():
+                for x, y in valid_generator():
+                    yield x, y[-1]
+
+            model_tmp.fit_generator(
+                generator=train_generator_stage_one(),
                 steps_per_epoch=math.ceil(nTrain / float(BN_SIZE)),
                 epochs=20,
                 verbose=2,
                 callbacks=callbacks,
-                validation_data=valid_generator(),
+                validation_data=valid_generator_stage_one(),
                 validation_steps=math.ceil(nValid / float(BN_SIZE)))
 
 
@@ -331,12 +365,13 @@ class SaltSeg():
             snapshot = SnapshotCallbackBuilder(T, M, alpha_zero)
             snapshotcallbacks = snapshot.get_callbacks(model_prefix=self.model_path)  # Build snapshot callbacks]
 
-            input_x = self.model.layers[0].input
 
-            output_layer = self.model.layers[-1].input
+            # outputs[-1] = output_layer
+            model2 = Model(input_x, [outputs[0], outputs[1], output_layer])
 
-            from keras.models import Model
-            model2 = Model(input_x, output_layer)
+            # TODO
+            # model_tmp = Model(input_x, outputs[1])
+            # model_tmp.load_weights(self.model_path)
 
             if USE_REFINE_NET:
                 model2.compile(optimizer=opt,
@@ -346,7 +381,8 @@ class SaltSeg():
                                    )
             else:
                 model2.compile(optimizer=opt,
-                                   loss=[lovasz_loss],
+                                   loss=[binary_crossentropy, lovasz_loss_nonempty, lovasz_loss],
+                                   loss_weights= [0.05, 0.1, 1],
                                    metrics=[my_iou_metric_2]
                                )
 
@@ -359,10 +395,13 @@ class SaltSeg():
                 validation_data=valid_generator(),
                 validation_steps=math.ceil(nValid / float(BN_SIZE)))
 
+        model2 = Model(input_x, [outputs[0], outputs[1], output_layer])
+        print(self.model_path)
+        model2.load_weights(self.model_path)
+
         ## evaluate on validation set
-        self.model.load_weights(self.model_path)
         p_valid = self.model.predict_generator(generator=valid_generator(),
-                                               steps=math.ceil(nValid / float(BN_SIZE))) # [-1]
+                                               steps=math.ceil(nValid / float(BN_SIZE)))[-1]
         # p_valid = sigmoid(p_valid)
 
         if USE_REFINE_NET:
@@ -400,7 +439,7 @@ class SaltSeg():
 
             mask = cv2.resize(pred, (ORIG_WIDTH, ORIG_HEIGHT), interpolation=cv2.INTER_LINEAR) > self.best_threshold
 
-            if np.sum(mask) < 10:
+            if np.sum(mask) < PIXEL_THRESHOLD:
                 mask = np.zeros(mask.shape)
             return mask
 
@@ -432,14 +471,19 @@ class SaltSeg():
                 pred_test /= float(CV_FOLD)
             else:
                 for fold_id in range(CV_FOLD):
+                    if fold_id not in SELECTED_FOLDS:
+                        continue
                     for j in range(M+1):
-                        if j == 0:
+                        if j == 0 or j not in SELECTED_MODEL:
+                            continue
                             self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
                         else:
                             self.model_path = '../weights/salt-segmentation-model{}-{}.h5'.format(fold_id, j)
                         pred_test_i = self.test(fold_id)
                         pred_test += pred_test_i
-                pred_test /= float(CV_FOLD*(M+1))
+                # pred_test /= float(CV_FOLD*(M))
+                pred_test /= float(len(SELECTED_FOLDS)*len(SELECTED_MODEL))
+
 
         pred_dict = {idx: RLenc(np.round(get_mask(pred_test[i])))
                      for i, idx in enumerate(tqdm_notebook(self.ids_test))}
@@ -449,6 +493,10 @@ class SaltSeg():
         sub.to_csv('submission.csv')
 
     def test(self, fold_id=''):
+        input_x = self.model.layers[0].input
+        output_layer = self.model.layers[-1].input
+        outputs = self.model.outputs
+
         # self.model_path = '../weights/salt-segmentation-model{}.h5'.format(fold_id)
 
         if not os.path.isfile(NET_FILE) or not os.path.isfile(self.model_path):
@@ -457,7 +505,12 @@ class SaltSeg():
         # json_file = open(self.net_path, 'r')
         # loaded_model_json = json_file.read()
         # self.model = model_from_json(loaded_model_json)
-        self.model.load_weights(self.model_path)
+
+        model2 = Model(input_x, [outputs[0], outputs[1], output_layer])
+        print(self.model_path)
+        model2.load_weights(self.model_path)
+
+        # self.model.load_weights(self.model_path)
 
         ## test
         nTest = len(self.ids_test)
@@ -486,7 +539,7 @@ class SaltSeg():
                         yield x_batch
 
             pred_test = self.model.predict_generator(generator=test_generator(),
-                                                  steps=math.ceil(nTest / float(BN_SIZE))) # [-1]
+                                                  steps=math.ceil(nTest / float(BN_SIZE)))[-1]
             # pred_test = sigmoid(pred_test)
 
             if USE_REFINE_NET:
@@ -517,14 +570,14 @@ class SaltSeg():
 
                 x_batch = np.array(x_batch, np.float32) # / 255.0
 
-                p_test = self.model.predict(x_batch, batch_size=BN_SIZE) # [-1]
+                p_test = self.model.predict(x_batch, batch_size=BN_SIZE)[-1]
                 # p_test = sigmoid(p_test)
 
                 if USE_REFINE_NET:
                     p_test = p_test[-1]
 
                 if N_TTA > 0:
-                    p_test_flip = self.model.predict(x_batch[:, :, ::-1, :], batch_size=BN_SIZE) # [-1]
+                    p_test_flip = self.model.predict(x_batch[:, :, ::-1, :], batch_size=BN_SIZE)[-1]
                     # p_test_flip = sigmoid(p_test_flip)
 
                     if USE_REFINE_NET:
